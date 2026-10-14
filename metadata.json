@@ -1,0 +1,6 @@
+{
+  "name": "Society Ledger",
+  "description": "Society Donation and Expense Management app with committee access control, receipt generator, pending pledges tracker, and financial analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

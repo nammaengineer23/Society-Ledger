@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // 1. NESTED UNDER SOCIETY (Represented by Society Name)
+    // Structure: /societies/{societyName}/{collection}/{id}
+    // ===============================================================
+    match /societies/{societyName} {
+      allow read, write: if true;
+
+      // Nested Members Directory
+      match /members/{memberId} {
+        allow read, write: if true;
+      }
+
+      // Nested Donations Collection
+      match /donations/{donationId} {
+        allow read, write: if true;
+      }
+
+      // Nested Expenses Collection
+      match /expenses/{expenseId} {
+        allow read, write: if true;
+      }
+
+      // Nested User Transactions Collection
+      match /transactions/{transactionId} {
+        allow read, write: if true;
+      }
+
+      // Nested Pledges
+      match /pledges/{pledgeId} {
+        allow read, write: if true;
+      }
+
+      // Nested Committee Members
+      match /committee_members/{committeeMemberId} {
+        allow read, write: if true;
+      }
+
+      // Nested Audit Logs
+      match /audit_logs/{logId} {
+        allow read, write: if true;
+      }
+
+      // Catch-all for any additional subcollection under society
+      match /{subcollection}/{docId} {
+        allow read, write: if true;
+      }
+    }
+
+    // ===============================================================
+    // 2. ROOT DIRECTORY / FALLBACK COLLECTIONS (Backward Compatibility)
+    // ===============================================================
+    match /members/{memberId} {
+      allow read, write: if true;
+    }
+
+    match /donations/{donationId} {
+      allow read, write: if true;
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+
+    match /transactions/{transactionId} {
+      allow read, write: if true;
+    }
+
+    match /pledges/{pledgeId} {
+      allow read, write: if true;
+    }
+
+    match /committee_members/{committeeMemberId} {
+      allow read, write: if true;
+    }
+
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /society_info/{infoId} {
+      allow read, write: if true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /subscriptions/{subId} {
+      allow read, write: if true;
+    }
+
+    match /app_config/{docId} {
+      allow read, write: if true;
+    }
+
+    match /master_admin_config/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
