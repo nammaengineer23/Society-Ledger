@@ -3,6 +3,7 @@ name: Build Signed Testing AAB
 on:
   push:
     branches:
+      - main
       - build/testing-aab
     paths:
       - ".github/workflows/build-testing-aab.yml"
