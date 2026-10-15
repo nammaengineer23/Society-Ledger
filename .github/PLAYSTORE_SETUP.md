@@ -15,6 +15,7 @@ Go to your GitHub repository: **Settings > Secrets and variables > Actions > New
 | `RELEASE_KEYSTORE_BASE64` | Base64 string of your upload keystore file (`.jks`) | `base64 -w 0 my-upload-key.jks` |
 | `STORE_PASSWORD` | Password for your keystore | The password set when creating the keystore |
 | `KEY_PASSWORD` | Password for the key alias | The key password set when creating the alias |
+| `KEY_ALIAS` *(Optional)* | Key alias in the keystore (defaults to `upload`) | `upload` or your custom alias name |
 | `PLAY_STORE_JSON_KEY` | Full JSON content of the Google Play Developer API Service Account private key | Paste the full contents of your `.json` key file |
 
 ---

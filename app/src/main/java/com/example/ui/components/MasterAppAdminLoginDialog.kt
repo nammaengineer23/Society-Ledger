@@ -53,7 +53,7 @@ import com.example.ui.viewmodel.AdminViewModel
  *
  * Provides a secure authorization dialog for the Master App Admin Console.
  * Requires:
- * 1. Master Admin Email (authorized: nammaengineer23@gmail.com)
+ * 1. Master Admin Email (authorized: societyledger@gmail.com)
  * 2. Master PIN (cloud-synced via Firestore app_config/master_admin, or bootstrap 9999)
  *
  * Includes submit button that triggers the ViewModel's authentication function.
@@ -86,7 +86,7 @@ fun MasterAppAdminLoginDialog(
     onDismiss: () -> Unit,
     onAuthenticate: (email: String, pin: String, onResult: (Boolean, String) -> Unit) -> Unit,
     onSuccess: () -> Unit,
-    initialEmail: String = "nammaengineer23@gmail.com"
+    initialEmail: String = "societyledger@gmail.com"
 ) {
     MasterAppAdminLoginDialogContent(
         isAuthenticating = false,
@@ -105,7 +105,7 @@ private fun MasterAppAdminLoginDialogContent(
     onDismiss: () -> Unit,
     onAuthenticate: (email: String, pin: String, onResult: (Boolean, String) -> Unit) -> Unit,
     onSuccess: () -> Unit,
-    initialEmail: String = "nammaengineer23@gmail.com"
+    initialEmail: String = "societyledger@gmail.com"
 ) {
     var emailInput by remember { mutableStateOf(initialEmail) }
     var pinInput by remember { mutableStateOf("") }
@@ -157,7 +157,7 @@ private fun MasterAppAdminLoginDialogContent(
                         localError = null
                     },
                     label = { Text("Master Admin Email") },
-                    placeholder = { Text("nammaengineer23@gmail.com") },
+                    placeholder = { Text("societyledger@gmail.com") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier

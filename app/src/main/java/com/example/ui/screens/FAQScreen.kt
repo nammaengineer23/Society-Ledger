@@ -168,7 +168,7 @@ val DEFAULT_FAQS = listOf(
         id = "faq_sec_2",
         category = "Security & Privacy",
         question = "How can I contact technical support or file a grievance?",
-        answer = "You can tap '📞 Contact Us' in the Society Hub or the bottom of the FAQ screen to submit an official support ticket. You can also reach Master Admin directly via Email at Nammaengineer23@gmail.com or Phone at +91 9986385925."
+        answer = "You can tap '📞 Contact Us' in the Society Hub or the bottom of the FAQ screen to submit an official support ticket. You can also reach Master Admin directly via Email at societyledger@gmail.com or WhatsApp Business at +91 9986385925."
     )
 )
 

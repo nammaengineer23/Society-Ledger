@@ -37,7 +37,13 @@ interface UserRepositoryContract {
 
     suspend fun login(email: String, password: String): AuthOpResult<User>
     suspend fun loginWithPhoneOtp(phone: String, name: String = "", role: String = "Resident Member"): AuthOpResult<User>
-    suspend fun loginWithGoogle(email: String, displayName: String = "", role: String = "Resident Member"): AuthOpResult<User>
+    suspend fun loginWithGoogle(
+        email: String,
+        displayName: String = "",
+        role: String = "Resident Member",
+        phone: String = "",
+        password: String = ""
+    ): AuthOpResult<User>
     suspend fun registerCommitteeMember(
         name: String,
         email: String,
@@ -277,9 +283,12 @@ class UserRepository(
     override suspend fun loginWithGoogle(
         email: String,
         displayName: String,
-        role: String
+        role: String,
+        phone: String,
+        password: String
     ): AuthOpResult<User> = withContext(Dispatchers.IO) {
         val trimmedEmail = email.trim()
+        val trimmedPhone = phone.trim()
         val effectiveName = if (displayName.isNotBlank()) {
             displayName.trim()
         } else if (trimmedEmail.isNotBlank()) {
@@ -289,17 +298,31 @@ class UserRepository(
         }
         val socName = societyPreferences.getSocietyInfo().name
 
+        // Check if duplicate phone number in backend if phone is entered
+        if (trimmedPhone.isNotBlank()) {
+            val allExistingMembers = memberDao.getAllMembersList()
+            val cleanPhone = trimmedPhone.filter { it.isDigit() }.takeLast(10)
+            val isDuplicate = allExistingMembers.any {
+                val existingClean = it.phone.filter { ch -> ch.isDigit() }.takeLast(10)
+                existingClean.isNotBlank() && existingClean == cleanPhone
+            }
+            if (isDuplicate) {
+                return@withContext AuthOpResult.Error("This phone number (+91 $cleanPhone) is already registered in the backend. Please use a unique phone number.")
+            }
+        }
+
         // Every user signing in with Google registers and enters as a Public Resident!
         val user = User(
             id = if (trimmedEmail.isNotBlank()) "google_${trimmedEmail.hashCode()}" else "google_${System.currentTimeMillis()}",
             name = effectiveName,
             email = trimmedEmail,
             role = "Public Resident",
+            phone = trimmedPhone,
             isSuperAdmin = false,
             societyName = socName
         )
 
-        societyPreferences.saveLoggedInUser(user.id, user.email, user.name, "Public Resident")
+        societyPreferences.saveLoggedInUser(user.id, user.email, user.name, "Public Resident", user.phone)
         _currentUser.value = user
         _accessProfile.value = firebaseAuthManager.resolveAccessProfile(user.email, emptyList())
         AuthOpResult.Success(user, "Signed in with Google as ${user.name} (Public Resident)")
@@ -334,6 +357,19 @@ class UserRepository(
         }
         if (trimmedPassword.length < 6) {
             return@withContext AuthOpResult.Error("Password must be at least 6 characters long.")
+        }
+
+        // Validate that phone number is not duplicate in the backend
+        if (trimmedPhone.isNotBlank()) {
+            val allExistingMembers = memberDao.getAllMembersList()
+            val cleanPhone = trimmedPhone.filter { it.isDigit() }.takeLast(10)
+            val isDuplicate = allExistingMembers.any {
+                val existingClean = it.phone.filter { ch -> ch.isDigit() }.takeLast(10)
+                existingClean.isNotBlank() && existingClean == cleanPhone
+            }
+            if (isDuplicate) {
+                return@withContext AuthOpResult.Error("This phone number (+91 $cleanPhone) is already registered in the backend. Please use a unique phone number.")
+            }
         }
 
         val isSuper = role.equals("Super Admin", ignoreCase = true) || isSuperAdminEmail(trimmedEmail)

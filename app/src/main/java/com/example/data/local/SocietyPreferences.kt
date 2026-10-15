@@ -11,7 +11,7 @@ class SocietyPreferences(context: Context) {
     fun getSocietyInfo(): SocietyInfo {
         // Retrieve values without pre-populated fake demo details
         var email = prefs.getString(KEY_ADMIN_EMAIL, "") ?: ""
-        if (email.equals("Nammaengineer23@gmail.com", ignoreCase = true)) email = ""
+        if (email.equals("societyledger@gmail.com", ignoreCase = true)) email = ""
 
         var phone = prefs.getString(KEY_PHONE, "") ?: ""
         if (phone == "9986385925" || phone == "9876543210") phone = ""
@@ -244,7 +244,7 @@ class SocietyPreferences(context: Context) {
 
     // Global App Broadcast Announcement Banner
     fun getGlobalAnnouncement(): String {
-        return prefs.getString(KEY_GLOBAL_ANNOUNCEMENT, "Welcome to Society Ledger! 3-Month Free Trial is active for all new resident societies.") ?: ""
+        return prefs.getString(KEY_GLOBAL_ANNOUNCEMENT, "Welcome to Society Ledger! Completely free transparency portal for all societies.") ?: ""
     }
 
     fun isGlobalAnnouncementEnabled(): Boolean {
@@ -338,7 +338,7 @@ class SocietyPreferences(context: Context) {
                         state = obj.optString("state", ""),
                         pinCode = obj.optString("pinCode", ""),
                         contactEmail = obj.optString("contactEmail", "").takeIf { !it.equals("contact@greenvalleysociety.org", ignoreCase = true) } ?: "",
-                        adminEmail = obj.optString("adminEmail", "").takeIf { !it.equals("Nammaengineer23@gmail.com", ignoreCase = true) } ?: "",
+                        adminEmail = obj.optString("adminEmail", "").takeIf { !it.equals("societyledger@gmail.com", ignoreCase = true) } ?: "",
                         contactPhone = obj.optString("contactPhone", "").takeIf { it != "9986385925" && it != "9876543210" } ?: "",
                         financialYear = obj.optString("financialYear", "FY 2026-2027"),
                         openingBalance = obj.optDouble("openingBalance", 0.0),
@@ -415,7 +415,7 @@ class SocietyPreferences(context: Context) {
                         state = obj.optString("state", ""),
                         pinCode = obj.optString("pinCode", ""),
                         contactEmail = obj.optString("contactEmail", "").takeIf { !it.equals("contact@greenvalleysociety.org", ignoreCase = true) } ?: "",
-                        adminEmail = obj.optString("adminEmail", "").takeIf { !it.equals("Nammaengineer23@gmail.com", ignoreCase = true) } ?: "",
+                        adminEmail = obj.optString("adminEmail", "").takeIf { !it.equals("societyledger@gmail.com", ignoreCase = true) } ?: "",
                         contactPhone = obj.optString("contactPhone", "").takeIf { it != "9986385925" && it != "9876543210" } ?: "",
                         financialYear = obj.optString("financialYear", "FY 2026-2027"),
                         openingBalance = obj.optDouble("openingBalance", 0.0),

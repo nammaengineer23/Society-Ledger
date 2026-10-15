@@ -163,7 +163,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val strings = LocalAppStrings.current
     val appShareUrl = ExportHelper.OFFICIAL_WEB_APP_URL
-    val uptodownAppStoreUrl = ExportHelper.UPTODOWN_APPSTORE_URL
+    val playStoreAppUrl = ExportHelper.PLAYSTORE_APP_URL
 
     var selectedSocietyForPin by remember { mutableStateOf<SearchableSociety?>(null) }
     var pinInput by remember { mutableStateOf("") }
@@ -193,11 +193,23 @@ fun HomeScreen(
             searchableSocieties
         } else {
             val q = searchQuery.trim().lowercase()
-            searchableSocieties.filter {
-                it.name.lowercase().contains(q) ||
-                        it.registrationNo.lowercase().contains(q) ||
-                        it.city.lowercase().contains(q) ||
-                        it.state.lowercase().contains(q)
+            searchableSocieties.filter { soc ->
+                soc.name.lowercase().contains(q) ||
+                        soc.registrationNo.lowercase().contains(q) ||
+                        soc.city.lowercase().contains(q) ||
+                        soc.state.lowercase().contains(q) ||
+                        soc.contactPhone.lowercase().contains(q) ||
+                        soc.contactEmail.lowercase().contains(q) ||
+                        soc.presidentName.lowercase().contains(q) ||
+                        soc.secretaryName.lowercase().contains(q) ||
+                        soc.treasurerName.lowercase().contains(q) ||
+                        getMembersForSociety(soc).any { member ->
+                            member.name.lowercase().contains(q) ||
+                                    member.phone.lowercase().contains(q) ||
+                                    member.role.lowercase().contains(q) ||
+                                    member.flatNo.lowercase().contains(q) ||
+                                    member.email.lowercase().contains(q)
+                        }
             }
         }
     }
@@ -959,7 +971,7 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "Master Admin: Nammaengineer23@gmail.com | Phone: 9986385925",
+                        text = "Master Admin: societyledger@gmail.com | WhatsApp Help: +91 9986385925",
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                         color = SapphireNavy
                     )
@@ -1726,7 +1738,7 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Link Display Box: Uptodown App Store & Web
+                    // Link Display Box: Google Play Store & Web
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         shape = RoundedCornerShape(10.dp),
@@ -1739,7 +1751,7 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "UPTODOWN APP STORE",
+                                    text = "GOOGLE PLAY STORE",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 9.sp,
@@ -1756,7 +1768,7 @@ fun HomeScreen(
                                 )
                             }
                             Text(
-                                text = uptodownAppStoreUrl,
+                                text = playStoreAppUrl,
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                 maxLines = 1,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1767,7 +1779,7 @@ fun HomeScreen(
                     // Share Action 1: Send Present APK File Directly
                     Button(
                         onClick = {
-                            ExportHelper.shareAppApk(context, appShareUrl, uptodownAppStoreUrl)
+                            ExportHelper.shareAppApk(context, appShareUrl, playStoreAppUrl)
                             showShareAppDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
@@ -1781,27 +1793,27 @@ fun HomeScreen(
                         Text("Send Present APK File", fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
-                    // Share Action 2: Open / Download on Uptodown App Store
+                    // Share Action 2: Open / Download on Google Play Store
                     Button(
                         onClick = {
-                            ExportHelper.openUptodownStore(context, uptodownAppStoreUrl)
+                            ExportHelper.openPlayStore(context, playStoreAppUrl)
                             showShareAppDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = SapphireNavy),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("dialog_open_uptodown_btn"),
+                            .testTag("dialog_open_playstore_btn"),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Open Uptodown App Store", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Open Google Play Store", fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
                     // Share Action 3: Share App Links via WhatsApp / Social Apps
                     OutlinedButton(
                         onClick = {
-                            ExportHelper.shareAppLinkOnly(context, appShareUrl, uptodownAppStoreUrl)
+                            ExportHelper.shareAppLinkOnly(context, appShareUrl, playStoreAppUrl)
                             showShareAppDialog = false
                         },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1B5E20)),
@@ -1813,13 +1825,13 @@ fun HomeScreen(
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF1B5E20))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Share Uptodown Link via WhatsApp / Apps", fontWeight = FontWeight.SemiBold)
+                        Text("Share Play Store Link via WhatsApp / Apps", fontWeight = FontWeight.SemiBold)
                     }
 
-                    // Share Action 4: Copy Uptodown & Web Links to Clipboard
+                    // Share Action 4: Copy Play Store & Web Links to Clipboard
                     OutlinedButton(
                         onClick = {
-                            val allLinks = "📲 Download on Uptodown App Store:\n$uptodownAppStoreUrl\n\n🌐 Web App Portal:\n$appShareUrl"
+                            val allLinks = "📲 Download on Google Play Store:\n$playStoreAppUrl\n\n🌐 Web App Portal:\n$appShareUrl"
                             ExportHelper.copyAppLinkToClipboard(context, allLinks)
                             showShareAppDialog = false
                         },

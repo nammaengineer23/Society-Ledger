@@ -726,7 +726,7 @@ fun CommitteeLoginScreen(
                                         isLoading = false
                                         if (success) {
                                             val isOwner = emailInput.trim().equals("rentitease@gmail.com", ignoreCase = true) ||
-                                                    emailInput.trim().equals("nammaengineer23@gmail.com", ignoreCase = true)
+                                                    emailInput.trim().equals("societyledger@gmail.com", ignoreCase = true)
                                             val matchedMember = currentAccessProfile.member
                                                 ?: userViewModel.currentUser.value?.toMember()
                                                 ?: Member(
@@ -761,7 +761,7 @@ fun CommitteeLoginScreen(
                                         when (result) {
                                             is AuthOpResult.Success -> {
                                                 val isOwner = emailInput.trim().equals("rentitease@gmail.com", ignoreCase = true) ||
-                                                        emailInput.trim().equals("nammaengineer23@gmail.com", ignoreCase = true)
+                                                        emailInput.trim().equals("societyledger@gmail.com", ignoreCase = true)
                                                 val matchedMember = currentAccessProfile.member
                                                     ?: Member(
                                                         name = result.data.displayName ?: emailInput.substringBefore("@").replace(".", " "),

@@ -107,7 +107,7 @@ fun ExpensesScreen(
         modifier = modifier.testTag("expenses_screen"),
         floatingActionButton = {
             AnimatedVisibility(
-                visible = isAdmin,
+                visible = isAdmin || activeMember != null,
                 enter = scaleIn() + fadeIn(),
                 exit = scaleOut() + fadeOut(),
                 label = "fab_add_expense_visibility"

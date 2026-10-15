@@ -205,9 +205,9 @@ fun RoleBasedAccessCard(
                             ) {
                                 Text(
                                     text = if (isAdmin) {
-                                        if (isSuperAdmin) "SUPER ADMIN" else "COMMITTEE ADMIN"
+                                        if (isSuperAdmin) "SUPER ADMIN" else "SOCIETY ADMIN"
                                     } else {
-                                        "REGULAR MEMBER"
+                                        currentMember?.role?.uppercase()?.takeIf { it.isNotBlank() } ?: "REGULAR MEMBER"
                                     },
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 10.sp,

@@ -27,11 +27,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -185,7 +185,7 @@ fun AuthMemberDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Firebase Cloud Auth Direct Action Button
+                // Sign In Action Button
                 OutlinedButton(
                     onClick = {
                         onDismiss()
@@ -193,7 +193,7 @@ fun AuthMemberDialog(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("open_firebase_auth_button"),
+                        .testTag("open_signin_button"),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = SocietyTealPrimary
@@ -201,13 +201,13 @@ fun AuthMemberDialog(
                     border = BorderStroke(1.dp, SocietyTealPrimary.copy(alpha = 0.5f))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Cloud,
+                        imageVector = Icons.Default.AccountCircle,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Sign In with Firebase Auth (Cloud)",
+                        text = "Sign In",
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -230,7 +230,7 @@ fun AuthMemberDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
                     ) {
                         Text(
-                            text = "Log Out (Sign Out of Account)",
+                            text = "Sign Out",
                             fontWeight = FontWeight.SemiBold,
                             style = MaterialTheme.typography.bodyMedium
                         )

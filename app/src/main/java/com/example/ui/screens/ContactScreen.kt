@@ -129,16 +129,6 @@ fun ContactScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { showContactSupportDialog = true },
-                        modifier = Modifier.testTag("contact_support_action_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SupportAgent,
-                            contentDescription = "Contact Master Admin",
-                            tint = SapphireNavy
-                        )
-                    }
                     if (onNavigateToFaq != null) {
                         IconButton(onClick = onNavigateToFaq, modifier = Modifier.testTag("contact_faq_action_btn")) {
                             Icon(Icons.Default.HelpOutline, contentDescription = "FAQ", tint = SapphireNavy)
@@ -158,77 +148,6 @@ fun ContactScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Master Admin Support Banner Card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showContactSupportDialog = true }
-                        .testTag("contact_support_banner"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = SapphireNavy.copy(alpha = 0.07f)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, SapphireNavy.copy(alpha = 0.25f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(SapphireNavy, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SupportAgent,
-                                    contentDescription = null,
-                                    tint = IndianSaffron,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Contact App Support",
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = SapphireNavy)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .background(IndianSaffron.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = "DIRECT",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SapphireNavy
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = "Send feedback, requests, or bug reports directly to Master Admin (nammaengineer23@gmail.com)",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = { showContactSupportDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SapphireNavy),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text("Open", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-                }
-            }
 
             if (onNavigateToFaq != null) {
                 item {

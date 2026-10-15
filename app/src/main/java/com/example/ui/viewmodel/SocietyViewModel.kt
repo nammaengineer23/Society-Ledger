@@ -992,7 +992,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val member = _currentMember.value
             val recordedId = member?.id ?: 1
-            val recordedName = member?.let { "${it.name} (${it.role})" } ?: "Admin"
+            val recordedName = member?.name ?: "Admin"
             repository.markDonationAsPaid(
                 donationId = donationId,
                 paymentMode = paymentMode,
@@ -2123,9 +2123,9 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             // 1. Verify authorized Master Admin email
-            val isAuthorizedEmail = cleanEmail == "nammaengineer23@gmail.com" ||
+            val isAuthorizedEmail = cleanEmail == "societyledger@gmail.com" ||
                     cleanEmail == "rentitease@gmail.com" ||
-                    firestoreService.getFirebaseUserEmail()?.equals("nammaengineer23@gmail.com", ignoreCase = true) == true ||
+                    firestoreService.getFirebaseUserEmail()?.equals("societyledger@gmail.com", ignoreCase = true) == true ||
                     firestoreService.getFirebaseUserEmail()?.equals("rentitease@gmail.com", ignoreCase = true) == true
 
             if (!isAuthorizedEmail) {
@@ -2191,7 +2191,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 // Save to Firestore so it syncs across all devices
-                firestoreService.saveMasterAdminConfig(clean, listOf("nammaengineer23@gmail.com"))
+                firestoreService.saveMasterAdminConfig(clean, listOf("societyledger@gmail.com"))
                 onResult(true, "Master Admin Security PIN updated across Cloud & all devices.")
             } catch (e: Exception) {
                 onResult(true, "Master Admin Console PIN updated locally.")

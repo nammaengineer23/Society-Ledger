@@ -80,8 +80,14 @@ class FakeUserRepository : UserRepositoryContract {
         return AuthOpResult.Success(user, "Phone login success")
     }
 
-    override suspend fun loginWithGoogle(email: String, displayName: String, role: String): AuthOpResult<User> {
-        val user = User(id = "user_google", name = displayName.ifBlank { "Google User" }, email = email, role = role)
+    override suspend fun loginWithGoogle(
+        email: String,
+        displayName: String,
+        role: String,
+        phone: String,
+        password: String
+    ): AuthOpResult<User> {
+        val user = User(id = "user_google", name = displayName.ifBlank { "Google User" }, email = email, role = role, phone = phone)
         _currentUser.value = user
         return AuthOpResult.Success(user, "Google login success")
     }
@@ -320,7 +326,7 @@ class UserAuthTest {
         )
 
         var loginCallbackCalled = false
-        viewModel.loginWithGoogle("nammaengineer23@gmail.com", "Rahul Sharma", "Resident Member") { success, _ ->
+        viewModel.loginWithGoogle("societyledger@gmail.com", "Rahul Sharma", "Resident Member") { success, _ ->
             loginCallbackCalled = true
         }
 
@@ -328,7 +334,7 @@ class UserAuthTest {
 
         assertTrue(loginCallbackCalled)
         assertEquals("Rahul Sharma", viewModel.currentUser.value?.name)
-        assertEquals("nammaengineer23@gmail.com", viewModel.currentUser.value?.email)
+        assertEquals("societyledger@gmail.com", viewModel.currentUser.value?.email)
     }
 
     @Test

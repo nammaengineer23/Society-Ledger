@@ -136,7 +136,7 @@ fun SubscriptionScreen(
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = "First 3 Months Free • ₹499/Year Later",
+                            text = "100% Free Forever for All Societies",
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -210,7 +210,7 @@ fun SubscriptionScreen(
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (isProSubscriber) "PRO ANNUAL ACTIVE" else "3 MONTHS FREE TRIAL",
+                                            text = "100% FREE ACCESS",
                                             style = MaterialTheme.typography.labelSmall.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isProSubscriber) Color.Black else Color.White
@@ -230,7 +230,7 @@ fun SubscriptionScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Text(
-                                text = if (isProSubscriber) "Society Ledger Pro Member" else "$daysRemainingInTrial Days Remaining in Free Trial",
+                                text = "Completely Free For All Societies & Members",
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -240,11 +240,7 @@ fun SubscriptionScreen(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             Text(
-                                text = if (isProSubscriber) {
-                                    "Your Pro subscription is active until ${dateFormat.format(Date(subscriptionExpiryTime))}. Thank you for supporting Society Ledger!"
-                                } else {
-                                    "Enjoy full unrestricted access during your initial 90-day free trial period (Valid until ${dateFormat.format(Date(trialEndTime))})."
-                                },
+                                text = "For the present, no subscription or membership is required for any member or society. Full access is completely free without restrictions.",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = Color.White.copy(alpha = 0.9f),
                                     lineHeight = 18.sp
@@ -427,14 +423,14 @@ fun SubscriptionScreen(
                         // Big Price Display
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
-                                text = "₹499",
+                                text = "₹0",
                                 style = MaterialTheme.typography.headlineLarge.copy(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = SapphireNavy
                                 )
                             )
                             Text(
-                                text = " / year",
+                                text = " / Free",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -443,7 +439,7 @@ fun SubscriptionScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "(~₹41/month)",
+                                text = "(No subscription required)",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = SocietyTealPrimary,
                                     fontWeight = FontWeight.SemiBold
@@ -469,7 +465,7 @@ fun SubscriptionScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "First 3 Months (90 Days) 100% Free Trial included automatically.",
+                                    text = "All societies and members have full, 100% free access without payment.",
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF1B5E20)
@@ -562,7 +558,7 @@ fun SubscriptionScreen(
                         FeatureItem("Instant Digital PDF Receipts with Society Seal", "1-tap WhatsApp and SMS receipts with official society stamp.")
                         FeatureItem("Statutory Audit Trail & Balance Sheet Export", "Complete change history logs, financial year rollover, and CSV exports.")
                         FeatureItem("UPI QR Code Payment Generator", "Dynamic QR codes for maintenance collections with zero transaction fees.")
-                        FeatureItem("Dedicated Support from Namma Engineer", "Direct WhatsApp/Call assistance at 9986385925 and Nammaengineer23@gmail.com.")
+                        FeatureItem("Dedicated Support from Master Admin", "Direct WhatsApp/Call assistance at 9986385925 and societyledger@gmail.com.")
                     }
                 }
             }
@@ -576,12 +572,12 @@ fun SubscriptionScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Need Help with Billing or Custom Trust Invoicing?",
+                            text = "Need Help or Dedicated Support?",
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Contact the developer directly for institutional 80G billing, GST receipts, or bank RTGS invoices.",
+                            text = "Contact Master Admin directly for society onboarding, WhatsApp group integrations, and live support.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -594,23 +590,23 @@ fun SubscriptionScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:9986385925"))
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/919986385925?text=Hello%20Society%20Ledger%20Support"))
                                     context.startActivity(intent)
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = SocietyTealPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Call Admin", fontSize = 12.sp)
+                                Text("WhatsApp Help", fontSize = 12.sp)
                             }
 
                             Button(
                                 onClick = {
                                     val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                        data = Uri.parse("mailto:Nammaengineer23@gmail.com")
-                                        putExtra(Intent.EXTRA_SUBJECT, "Society Ledger Subscription: ${societyInfo.name}")
+                                        data = Uri.parse("mailto:societyledger@gmail.com")
+                                        putExtra(Intent.EXTRA_SUBJECT, "Society Ledger Support: ${societyInfo.name}")
                                     }
                                     context.startActivity(intent)
                                 },

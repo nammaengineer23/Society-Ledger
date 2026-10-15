@@ -534,11 +534,11 @@ object PdfReceiptGenerator {
         canvas.drawText("Public Transparency Ledger", margin + 40f * scale, y + (20f * scale), paint)
         canvas.drawText("Authentic Transaction", margin + 40f * scale, y + (30f * scale), paint)
 
-        // Draw Public Join & Uptodown App Store QR Code in center
+        // Draw Google Play Store App Download QR Code in center
         try {
-            val joinPayload = "https://society-ledger.en.uptodown.com/android?society_id=${societyInfo.registrationNo}"
+            val playStorePayload = "https://play.google.com/store/apps/details?id=com.societyledger.app"
             val qrBitmap = QrCodeGenerator.generateQrBitmap(
-                content = joinPayload,
+                content = playStorePayload,
                 size = (70 * scale).toInt().coerceAtLeast(64),
                 foregroundColor = Color.rgb(26, 35, 126),
                 backgroundColor = Color.WHITE
@@ -552,11 +552,11 @@ object PdfReceiptGenerator {
             paint.color = Color.rgb(26, 35, 126)
             paint.textSize = 7.5f * scale
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("SCAN FOR UPTODOWN STORE", width / 2f, qrTop + qrSize + (10f * scale), paint)
+            canvas.drawText("SCAN FOR PLAY STORE APP", width / 2f, qrTop + qrSize + (10f * scale), paint)
             paint.color = Color.rgb(100, 116, 139)
             paint.textSize = 6.5f * scale
             paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            canvas.drawText("(Get App & Public Ledger)", width / 2f, qrTop + qrSize + (18f * scale), paint)
+            canvas.drawText("(Download on Google Play)", width / 2f, qrTop + qrSize + (18f * scale), paint)
         } catch (e: Exception) {
             e.printStackTrace()
         }

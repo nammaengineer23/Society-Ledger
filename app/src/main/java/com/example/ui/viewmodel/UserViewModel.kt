@@ -139,6 +139,17 @@ class UserViewModel(
     }
 
     /**
+     * Signs in with email and password.
+     */
+    fun loginWithEmail(
+        email: String,
+        password: String,
+        onResult: ((Boolean, String) -> Unit)? = null
+    ) {
+        login(email, password, onResult)
+    }
+
+    /**
      * Signs in or registers a member using verified Mobile Phone Number and OTP.
      */
     fun loginWithPhoneOtp(
@@ -175,6 +186,8 @@ class UserViewModel(
         email: String,
         displayName: String = "",
         role: String = "Public Resident",
+        phone: String = "",
+        password: String = "",
         onResult: ((Boolean, String) -> Unit)? = null
     ) {
         viewModelScope.launch {
@@ -182,7 +195,7 @@ class UserViewModel(
             _errorMessage.value = null
             _successMessage.value = null
 
-            val result = userRepository.loginWithGoogle(email, displayName, role)
+            val result = userRepository.loginWithGoogle(email, displayName, role, phone, password)
 
             _isLoading.value = false
             when (result) {
@@ -205,6 +218,7 @@ class UserViewModel(
         email: String,
         password: String,
         name: String = "",
+        phone: String = "",
         onResult: ((Boolean, String) -> Unit)? = null
     ) {
         val derivedName = if (name.isNotBlank()) {
@@ -222,7 +236,7 @@ class UserViewModel(
         registerCommitteeMember(
             name = derivedName,
             email = email.trim(),
-            phone = "",
+            phone = phone.trim(),
             password = password,
             role = "Resident Member",
             pin = "",

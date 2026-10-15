@@ -1,7 +1,12 @@
 package com.example
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
@@ -42,10 +47,12 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.filled.Warning
@@ -68,12 +75,16 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -220,6 +231,45 @@ fun SocietyMainApp(
     LaunchedEffect(currentScreen) {
         if (!societyPreferences.isUserLoggedIn() && currentScreen != AppScreen.LOGIN) {
             currentScreen = AppScreen.LOGIN
+        }
+    }
+
+    val screenBackStack = remember { mutableStateListOf<AppScreen>() }
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+    var showPlayStoreRatingDialog by remember { mutableStateOf(false) }
+
+    fun navigateTo(screen: AppScreen) {
+        if (currentScreen != screen) {
+            screenBackStack.add(currentScreen)
+            currentScreen = screen
+        }
+    }
+
+    BackHandler(enabled = true) {
+        if (currentScreen == AppScreen.LOGIN) {
+            val now = System.currentTimeMillis()
+            if (now - lastBackPressTime < 2500L) {
+                (context as? Activity)?.finish()
+            } else {
+                lastBackPressTime = now
+                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+            }
+        } else if (screenBackStack.isNotEmpty()) {
+            val previous = screenBackStack.removeAt(screenBackStack.lastIndex)
+            currentScreen = previous
+        } else if (currentScreen != AppScreen.HOME && currentScreen != AppScreen.DASHBOARD) {
+            currentScreen = AppScreen.HOME
+        } else if (currentScreen == AppScreen.DASHBOARD) {
+            currentScreen = AppScreen.HOME
+        } else {
+            // Already on HOME screen (Root)
+            val now = System.currentTimeMillis()
+            if (now - lastBackPressTime < 2500L) {
+                showPlayStoreRatingDialog = true
+            } else {
+                lastBackPressTime = now
+                Toast.makeText(context, "Press back again to close & rate on Play Store ⭐", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -410,23 +460,6 @@ fun SocietyMainApp(
                             )
                         }
 
-                        // AI FAQ & Queries Chatbot Action Button
-                        IconButton(
-                            onClick = {
-                                chatbotReturnScreen = currentScreen
-                                currentScreen = AppScreen.CHATBOT
-                            },
-                            modifier = Modifier
-                                .padding(end = 2.dp)
-                                .testTag("top_bar_ai_chat_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "AI FAQ & Queries Chatbot",
-                                tint = IndianSaffron
-                            )
-                        }
-
                         // Language Switching Action Button
                         IconButton(
                             onClick = { showLanguageDialog = true },
@@ -464,9 +497,10 @@ fun SocietyMainApp(
 
                         // Top Right Corner: Member Option to Enter / Authenticate with PIN with smooth motion transitions
                         val chipTargetColor = when {
-                            !isAdminMode -> IndianSaffron
-                            isSuperAdmin -> SapphireNavy
-                            else -> SocietyTealPrimary
+                            activeMember != null -> SocietyTealPrimary
+                            isAdminMode && isSuperAdmin -> SapphireNavy
+                            isAdminMode -> SocietyTealPrimary
+                            else -> IndianSaffron
                         }
                         val animatedChipColor by animateColorAsState(
                             targetValue = chipTargetColor,
@@ -483,33 +517,34 @@ fun SocietyMainApp(
                                 .testTag("top_bar_auth_chip")
                         ) {
                             AnimatedContent(
-                                targetState = Triple(isAdminMode, isSuperAdmin, activeMember?.name?.split(" ")?.firstOrNull()),
+                                targetState = Triple(isAdminMode, isSuperAdmin, activeMember?.name),
                                 transitionSpec = {
                                     (fadeIn(animationSpec = tween(220)) + slideInVertically(animationSpec = tween(220)) { -it / 2 })
                                         .togetherWith(fadeOut(animationSpec = tween(160)) + slideOutVertically(animationSpec = tween(160)) { it / 2 })
                                 },
                                 label = "top_bar_auth_chip_motion"
-                            ) { (admin, superAdmin, memberName) ->
+                            ) { (admin, superAdmin, memberFullName) ->
                                 Row(
                                     modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = when {
-                                            !admin -> Icons.Default.Key
-                                            superAdmin -> Icons.Default.Security
-                                            else -> Icons.Default.Person
+                                            activeMember != null -> Icons.Default.Person
+                                            admin && superAdmin -> Icons.Default.Security
+                                            admin -> Icons.Default.AdminPanelSettings
+                                            else -> Icons.Default.Public
                                         },
-                                        contentDescription = if (!admin) "Enter as Member" else if (superAdmin) "Admin Account" else "Committee Member: ${memberName ?: "Member"}",
+                                        contentDescription = if (activeMember != null) activeMember?.name else if (admin) "Admin Account" else "Public",
                                         tint = Color.White,
                                         modifier = Modifier.size(15.dp)
                                     )
                                     Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = when {
-                                            !admin -> "Member"
-                                            superAdmin -> strings.superAdminPrefix
-                                            else -> memberName ?: "Member"
+                                            activeMember != null -> memberFullName?.split(" ")?.firstOrNull() ?: activeMember?.name ?: "Member"
+                                            admin -> if (superAdmin) strings.superAdminPrefix else "Admin"
+                                            else -> "Public"
                                         },
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
@@ -531,7 +566,7 @@ fun SocietyMainApp(
             if (currentScreen != AppScreen.LOGIN) {
                 MainBottomNavigationBar(
                     currentScreen = currentScreen,
-                    onNavigate = { screen -> currentScreen = screen },
+                    onNavigate = { screen -> navigateTo(screen) },
                     pendingPledgeCount = kpis.pendingCount
                 )
             }
@@ -632,12 +667,12 @@ fun SocietyMainApp(
                         onViewReceipt = { donation -> donationForReceipt = donation },
                         onMarkAsPaid = { donation -> donationForMarkPaid = donation },
                         onEditDonation = { donation ->
-                            if (isSuperAdmin) editingDonation = donation else restrictedActionName = "Modify"
+                            if (isAdminMode || isSuperAdmin) editingDonation = donation else restrictedActionName = "Modify Transactions (Admin Only)"
                         },
                         onDeleteDonation = { donation ->
-                            if (isAdminMode) donationToDelete = donation else restrictedActionName = "Delete"
+                            if (isAdminMode || isSuperAdmin) donationToDelete = donation else restrictedActionName = "Delete Transactions (Admin Only)"
                         },
-                        onNavigateToDonors = { currentScreen = AppScreen.DONORS }
+                        onNavigateToDonors = { navigateTo(AppScreen.DONORS) }
                     )
                 }
 
@@ -711,14 +746,16 @@ fun SocietyMainApp(
                         onCategoryFilterChange = viewModel::setExpenseCategoryFilter,
                         onTimePeriodChange = viewModel::setExpenseTimePeriod,
                         onMemberFilterChange = viewModel::setExpenseMemberFilter,
-                        onManageBudgetsClick = { showBudgetDialog = true },
-                        onAddExpenseClick = { currentScreen = AppScreen.NEW_EXPENSE },
-                        onOpenExpenseForm = { currentScreen = AppScreen.NEW_EXPENSE },
+                        onManageBudgetsClick = {
+                            if (isAdminMode || isSuperAdmin) showBudgetDialog = true else restrictedActionName = "Set/Modify Budgets (Admin Only)"
+                        },
+                        onAddExpenseClick = { navigateTo(AppScreen.NEW_EXPENSE) },
+                        onOpenExpenseForm = { navigateTo(AppScreen.NEW_EXPENSE) },
                         onEditExpense = { expense ->
-                            if (isSuperAdmin) editingExpense = expense else restrictedActionName = "Modify"
+                            if (isAdminMode || isSuperAdmin) editingExpense = expense else restrictedActionName = "Modify Transactions (Admin Only)"
                         },
                         onDeleteExpense = { expense ->
-                            if (isAdminMode) expenseToDelete = expense else restrictedActionName = "Delete"
+                            if (isAdminMode || isSuperAdmin) expenseToDelete = expense else restrictedActionName = "Delete Transactions (Admin Only)"
                         }
                     )
                 }
@@ -1681,6 +1718,104 @@ fun SocietyMainApp(
             },
             onMarkDonationAsPaid = { donation ->
                 donationForMarkPaid = donation
+            }
+        )
+    }
+
+    // 19. Double-Back Exit & Play Store Rating Dialog
+    if (showPlayStoreRatingDialog) {
+        var selectedStars by remember { mutableIntStateOf(5) }
+        AlertDialog(
+            onDismissRequest = { showPlayStoreRatingDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = IndianSaffron,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Enjoying Society Ledger?",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Your rating on Google Play Store helps communities across India adopt transparent and audited financial management.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (i in 1..5) {
+                            IconButton(onClick = { selectedStars = i }) {
+                                Icon(
+                                    imageVector = if (i <= selectedStars) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$i stars",
+                                    tint = if (i <= selectedStars) IndianSaffron else Color.Gray,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "$selectedStars / 5 Stars Selected",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, color = SapphireNavy)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val packageName = context.packageName
+                        val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        try {
+                            context.startActivity(playStoreIntent)
+                        } catch (e: Exception) {
+                            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(webIntent)
+                        }
+                        showPlayStoreRatingDialog = false
+                        (context as? Activity)?.finish()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SapphireNavy),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("⭐ Rate on Play Store & Exit", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            showPlayStoreRatingDialog = false
+                            (context as? Activity)?.finish()
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Exit App")
+                    }
+                    TextButton(
+                        onClick = { showPlayStoreRatingDialog = false }
+                    ) {
+                        Text("Keep Using")
+                    }
+                }
             }
         )
     }

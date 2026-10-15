@@ -156,7 +156,7 @@ fun AppAdminConsoleScreen(
         isMasterAuthenticated = initialAuthenticated
     }
 
-    var enteredEmail by remember { mutableStateOf("nammaengineer23@gmail.com") }
+    var enteredEmail by remember { mutableStateOf("societyledger@gmail.com") }
     var enteredPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("Access Denied: Only authorized Master Admin") }
@@ -296,7 +296,7 @@ fun AppAdminConsoleScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Restricted to Application Owner (nammaengineer23@gmail.com). Enter your authorized email and Master PIN to unlock the console.",
+                            text = "Restricted to Application Owner (societyledger@gmail.com). Enter your authorized email and Master PIN to unlock the console.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -311,7 +311,7 @@ fun AppAdminConsoleScreen(
                                 pinError = false
                             },
                             label = { Text("Master Admin Email") },
-                            placeholder = { Text("nammaengineer23@gmail.com") },
+                            placeholder = { Text("societyledger@gmail.com") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             leadingIcon = {
@@ -407,7 +407,7 @@ fun AppAdminConsoleScreen(
                                         }
                                     }
                                 } else {
-                                    val isAuthorizedEmail = enteredEmail.trim().equals("nammaengineer23@gmail.com", ignoreCase = true) ||
+                                    val isAuthorizedEmail = enteredEmail.trim().equals("societyledger@gmail.com", ignoreCase = true) ||
                                             enteredEmail.trim().equals("rentitease@gmail.com", ignoreCase = true)
                                     if (!isAuthorizedEmail) {
                                         pinError = true
@@ -492,7 +492,7 @@ fun AppAdminConsoleScreen(
                                 )
                             )
                             Text(
-                                text = "Nammaengineer23@gmail.com | 9986385925",
+                                text = "societyledger@gmail.com | 9986385925",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontSize = 11.sp,
                                     color = Color.White.copy(alpha = 0.8f)
@@ -505,12 +505,12 @@ fun AppAdminConsoleScreen(
                         IconButton(
                             onClick = {
                                 val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                    data = Uri.parse("mailto:Nammaengineer23@gmail.com?subject=Society%20Ledger%20Admin%20Inquiry")
+                                    data = Uri.parse("mailto:societyledger@gmail.com?subject=Society%20Ledger%20Admin%20Inquiry")
                                 }
                                 try {
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Email: Nammaengineer23@gmail.com", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Email: societyledger@gmail.com", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.size(32.dp)
@@ -1818,7 +1818,7 @@ private fun GlobalControlsTab(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Master Developer Desk: Nammaengineer23@gmail.com",
+                        text = "Master Developer Desk: societyledger@gmail.com",
                         style = MaterialTheme.typography.bodySmall.copy(color = SapphireNavy, fontWeight = FontWeight.SemiBold)
                     )
                     Text(
@@ -2518,7 +2518,7 @@ private fun DigitalLicenseCertificateDialog(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "Support: Nammaengineer23@gmail.com | 9986385925",
+                            text = "Support: societyledger@gmail.com | 9986385925",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

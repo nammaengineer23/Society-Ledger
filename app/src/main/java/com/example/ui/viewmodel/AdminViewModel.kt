@@ -103,7 +103,7 @@ class AdminViewModel(
 
     /**
      * Authenticates the Master Admin against Firestore cloud configuration.
-     * Verifies that the entered email belongs to the authorized Master Admin (nammaengineer23@gmail.com)
+     * Verifies that the entered email belongs to the authorized Master Admin (societyledger@gmail.com)
      * and that the Master PIN matches the Firestore config or bootstrap PIN.
      */
     fun authenticate(
@@ -292,7 +292,8 @@ class AdminViewModel(
 
     companion object {
         private const val TAG = "AdminViewModel"
-        const val AUTHORIZED_MASTER_ADMIN_EMAIL = "nammaengineer23@gmail.com"
+        const val AUTHORIZED_MASTER_ADMIN_EMAIL = "societyledger@gmail.com"
+        const val MASTER_ADMIN_WHATSAPP = "9986385925"
         const val DEFAULT_ADMIN_PIN = "0000"
         const val SESSION_MAX_DURATION_MS = 2 * 60 * 60 * 1000L // 2 hours
     }

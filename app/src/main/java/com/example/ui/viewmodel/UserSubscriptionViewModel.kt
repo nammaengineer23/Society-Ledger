@@ -34,7 +34,7 @@ class UserSubscriptionViewModel(
     private val _subscription = MutableStateFlow(
         UserSubscription(
             userId = firestoreService.getCurrentFirebaseUser()?.first ?: "user_default",
-            userEmail = firestoreService.getCurrentFirebaseUser()?.second ?: "nammaengineer23@gmail.com",
+            userEmail = firestoreService.getCurrentFirebaseUser()?.second ?: "societyledger@gmail.com",
             societyId = preferences.getSocietyInfo().registrationNo,
             isPro = preferences.isProSubscriber(),
             planType = if (preferences.isProSubscriber()) "PRO_ANNUAL" else "FREE_TRIAL",

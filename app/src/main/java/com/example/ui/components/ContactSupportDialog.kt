@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,14 +69,15 @@ import com.example.ui.theme.SocietyTealPrimary
 
 /**
  * User-friendly modal dialog allowing members and residents to send feedback,
- * feature requests, or support inquiries directly to the Master Admin email (nammaengineer23@gmail.com).
+ * feature requests, or support inquiries directly to the Master Admin email (societyledger@gmail.com).
  */
 @Composable
 fun ContactSupportDialog(
     societyInfo: SocietyInfo,
     onDismiss: () -> Unit,
     onSubmitTicket: ((AppComplaint) -> Unit)? = null,
-    masterAdminEmail: String = "nammaengineer23@gmail.com",
+    masterAdminEmail: String = "societyledger@gmail.com",
+    masterAdminWhatsApp: String = "9986385925",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -220,6 +223,68 @@ fun ContactSupportDialog(
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
+                        }
+                    }
+
+                    // WhatsApp Help Card (9986385925)
+                    Card(
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF25D366).copy(alpha = 0.12f)),
+                        border = BorderStroke(1.dp, Color(0xFF25D366).copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                try {
+                                    val waIntent = Intent(Intent.ACTION_VIEW).apply {
+                                        data = Uri.parse("https://wa.me/919986385925?text=Hello%20Society%20Ledger%20Master%20Admin%20Support")
+                                    }
+                                    context.startActivity(waIntent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "WhatsApp Help: +91 9986385925", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                            .testTag("whatsapp_help_card")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(Color(0xFF25D366), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "WhatsApp Business Help",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = Color(0xFF1B5E20)
+                                    )
+                                    Text(
+                                        text = "+91 9986385925 • Instant Master Admin Chat",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                        color = Color(0xFF2E7D32)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Chat >",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFF1B5E20)
+                            )
                         }
                     }
 

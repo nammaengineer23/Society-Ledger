@@ -369,16 +369,17 @@ object ExportHelper {
         }
     }
 
-    const val UPTODOWN_APPSTORE_URL = "https://society-ledger.en.uptodown.com/android"
+    const val PLAYSTORE_APP_URL = "https://play.google.com/store/apps/details?id=com.societyledger.app"
+    const val UPTODOWN_APPSTORE_URL = PLAYSTORE_APP_URL
     const val OFFICIAL_WEB_APP_URL = "https://ais-pre-x2q5265yk7suo6hhyewgn4-96719227087.asia-east1.run.app"
 
     /**
-     * Shares the present installed APK file directly (via FileProvider or direct intent) along with the Uptodown App Store & Web links.
+     * Shares the present installed APK file directly (via FileProvider or direct intent) along with Google Play Store & Web links.
      */
     fun shareAppApk(
         context: Context,
         appShareUrl: String = OFFICIAL_WEB_APP_URL,
-        uptodownUrl: String = UPTODOWN_APPSTORE_URL
+        playStoreUrl: String = PLAYSTORE_APP_URL
     ) {
         try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -391,13 +392,13 @@ object ExportHelper {
                 
                 📱 *App Version:* v${packageInfo.versionName ?: "1.0.0"}
                 
-                📲 *Download from Uptodown App Store:*
-                $uptodownUrl
+                📲 *Download from Google Play Store:*
+                $playStoreUrl
                 
                 🌐 *Online Web Access & Society Portal:*
                 $appShareUrl
                 
-                Share this APK file or link with your society committee members and residents for 100% financial transparency!
+                Share this APK file or Play Store link with your society committee members and residents for 100% financial transparency!
             """.trimIndent()
 
             if (appFile.exists()) {
@@ -418,28 +419,26 @@ object ExportHelper {
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "application/vnd.android.package-archive"
                     putExtra(Intent.EXTRA_STREAM, apkUri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Download Society Ledger App (Uptodown & APK)")
+                    putExtra(Intent.EXTRA_SUBJECT, "Download Society Ledger App from Google Play Store")
                     putExtra(Intent.EXTRA_TEXT, shareMessage)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "Share Society Ledger App (APK & Uptodown Link)"))
+                context.startActivity(Intent.createChooser(intent, "Share Society Ledger App (APK & Play Store Link)"))
             } else {
-                // If direct APK sourceDir is inaccessible, share link & details
-                shareAppLinkOnly(context, appShareUrl, uptodownUrl)
+                shareAppLinkOnly(context, appShareUrl, playStoreUrl)
             }
         } catch (e: Exception) {
-            // Fallback gracefully to text & link share if APK binary extraction is restricted
-            shareAppLinkOnly(context, appShareUrl, uptodownUrl)
+            shareAppLinkOnly(context, appShareUrl, playStoreUrl)
         }
     }
 
     /**
-     * Shares the app download link (Uptodown App Store and Web link) via standard Android share chooser.
+     * Shares the app download link (Google Play Store and Web link) via standard Android share chooser.
      */
     fun shareAppLinkOnly(
         context: Context,
         appShareUrl: String = OFFICIAL_WEB_APP_URL,
-        uptodownUrl: String = UPTODOWN_APPSTORE_URL
+        playStoreUrl: String = PLAYSTORE_APP_URL
     ) {
         try {
             val shareMessage = """
@@ -447,8 +446,8 @@ object ExportHelper {
                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 Official society accounting, audited balance sheets, donor directory & digital receipts management system.
                 
-                📲 *Download on Uptodown App Store:*
-                $uptodownUrl
+                📲 *Download on Google Play Store:*
+                $playStoreUrl
                 
                 🌐 *Open Web App & Society Portal:*
                 $appShareUrl
@@ -458,7 +457,7 @@ object ExportHelper {
 
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "Society Ledger App - Uptodown App Store & Web Link")
+                putExtra(Intent.EXTRA_SUBJECT, "Society Ledger App - Google Play Store & Web Link")
                 putExtra(Intent.EXTRA_TEXT, shareMessage)
             }
             context.startActivity(Intent.createChooser(intent, "Share Society Ledger App Link"))
@@ -468,15 +467,19 @@ object ExportHelper {
     }
 
     /**
-     * Opens the official Uptodown App Store page in browser or app store client.
+     * Opens the official Google Play Store page in browser or Play Store app.
      */
-    fun openUptodownStore(context: Context, uptodownUrl: String = UPTODOWN_APPSTORE_URL) {
+    fun openPlayStore(context: Context, playStoreUrl: String = PLAYSTORE_APP_URL) {
         try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uptodownUrl))
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(playStoreUrl))
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Unable to open browser: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Unable to open Play Store: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun openUptodownStore(context: Context, uptodownUrl: String = PLAYSTORE_APP_URL) {
+        openPlayStore(context, uptodownUrl)
     }
 
     /**

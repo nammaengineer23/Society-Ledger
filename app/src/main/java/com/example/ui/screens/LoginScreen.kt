@@ -43,17 +43,19 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +69,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -82,6 +83,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -100,20 +103,20 @@ import com.example.ui.theme.Slate900
 import com.example.ui.theme.SocietyTealDark
 import com.example.ui.theme.SocietyTealPrimary
 import com.example.ui.viewmodel.UserViewModel
-import kotlinx.coroutines.delay
 
 /**
  * Public resident authentication login options supported by the screen:
- * Google & Social Account selector, or Mobile Number & OTP Verification.
+ * Google Sign-In or Email / Password credentials.
+ * OTP verification is removed.
  */
 enum class AuthMethodOption {
-    GOOGLE_SOCIAL,
-    MOBILE_OTP
+    GOOGLE,
+    EMAIL
 }
 
 /**
- * Integrated User Authentication screen connecting to [UserViewModel] and Firebase Auth.
- * Handles Google Sign-In with device account picker and Mobile Number & OTP verification.
+ * Integrated User Authentication screen connecting to [UserViewModel].
+ * Handles Google Sign-In and Email & Password sign-in / registration.
  * Automatically ensures all users register and land in Public Resident view.
  */
 @Composable
@@ -144,11 +147,19 @@ fun UserAuthScreen(
         isLoading = isLoading,
         errorMessage = errorMessage,
         successMessage = successMessage,
-        onGoogleSignInSubmit = { email, displayName, role ->
-            userViewModel.loginWithGoogle(email, displayName, "Public Resident")
+        onGoogleSignInSubmit = { email, displayName, role, phone, password ->
+            userViewModel.loginWithGoogle(email, displayName, "Public Resident", phone, password)
         },
-        onPhoneOtpSubmit = { phone, name, role ->
-            userViewModel.loginWithPhoneOtp(phone, name, "Public Resident")
+        onLoginSubmit = { email, password ->
+            userViewModel.loginWithEmail(email, password)
+        },
+        onRegisterSubmit = { name, email, phone, password ->
+            userViewModel.register(
+                email = email,
+                password = password,
+                name = name,
+                phone = phone
+            )
         },
         onClearMessages = {
             userViewModel.clearMessages()
@@ -159,9 +170,9 @@ fun UserAuthScreen(
 
 /**
  * Public Authentication screen providing:
- * 1. Google Sign-In with device email selector (lists Google accounts on the phone)
- * 2. Mobile Number & OTP verification
- * Committee login and registration sections have been removed from this screen.
+ * 1. Google Sign-In: Continue with Google, prompts for password, and on first-time account prompts for Name and unique Phone.
+ * 2. Email Sign-In / Register: Email and Password with optional first-time account Name and unique Phone.
+ * OTP verification is removed; no phone/email verification required.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,14 +180,13 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
     societyInfo: SocietyInfo? = null,
     availableMembers: List<Member> = emptyList(),
-    initialMethod: AuthMethodOption = AuthMethodOption.GOOGLE_SOCIAL,
+    initialMethod: AuthMethodOption = AuthMethodOption.GOOGLE,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     successMessage: String? = null,
     onLoginSubmit: (email: String, password: String) -> Unit = { _, _ -> },
-    onGoogleSignInSubmit: (email: String, displayName: String, role: String) -> Unit = { _, _, _ -> },
-    onPhoneOtpSubmit: (phone: String, name: String, role: String) -> Unit = { _, _, _ -> },
-    onRegisterSubmit: (name: String, email: String, phone: String, password: String, role: String, pin: String, flatNo: String) -> Unit = { _, _, _, _, _, _, _ -> },
+    onGoogleSignInSubmit: (email: String, displayName: String, role: String, phone: String, password: String) -> Unit = { _, _, _, _, _ -> },
+    onRegisterSubmit: (name: String, email: String, phone: String, password: String) -> Unit = { _, _, _, _ -> },
     onResetPassword: ((email: String) -> Unit)? = null,
     onClearMessages: () -> Unit = {},
     onBack: (() -> Unit)? = null
@@ -186,19 +196,33 @@ fun LoginScreen(
     // Google Sign-In State
     var googleAccountEmail by remember { mutableStateOf("") }
     var googleAccountName by remember { mutableStateOf("") }
+    var googleAccountPhone by remember { mutableStateOf("") }
+    var googleAccountPassword by remember { mutableStateOf("") }
+    var isGoogleAccountSelected by remember { mutableStateOf(false) }
+    var isGooglePasswordVisible by remember { mutableStateOf(false) }
 
-    // Mobile Number & OTP State
-    var mobileNumber by remember { mutableStateOf("") }
-    var residentName by remember { mutableStateOf("") }
-    var isOtpSent by remember { mutableStateOf(false) }
-    var otpInput by remember { mutableStateOf("") }
-    var otpTimerSeconds by remember { mutableIntStateOf(30) }
-    var isOtpTimerActive by remember { mutableStateOf(false) }
+    // Email Sign-In / Register State
+    var isEmailRegisterMode by remember { mutableStateOf(false) }
+    var emailInput by remember { mutableStateOf("") }
+    var emailPassword by remember { mutableStateOf("") }
+    var emailResidentName by remember { mutableStateOf("") }
+    var emailPhoneNumber by remember { mutableStateOf("") }
+    var isEmailPasswordVisible by remember { mutableStateOf(false) }
 
     // Feedback & UI State
     var localError by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
     val displayedError = errorMessage ?: localError
+
+    // Helper to check for duplicate phone number in backend
+    fun isPhoneNumberDuplicate(rawPhone: String): Boolean {
+        val clean = rawPhone.filter { it.isDigit() }.takeLast(10)
+        if (clean.length < 10) return false
+        return availableMembers.any { member ->
+            val memberClean = member.phone.filter { it.isDigit() }.takeLast(10)
+            memberClean.isNotBlank() && memberClean == clean
+        }
+    }
 
     // Launcher for device account picker (lists Google accounts on the phone)
     val accountPickerLauncher = rememberLauncherForActivityResult(
@@ -216,10 +240,9 @@ fun LoginScreen(
                         word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
                     }
                 googleAccountName = displayName
+                isGoogleAccountSelected = true
                 localError = null
                 onClearMessages()
-                // Submit immediately as Public Resident
-                onGoogleSignInSubmit(selectedEmail, displayName, "Public Resident")
             }
         }
     }
@@ -229,38 +252,26 @@ fun LoginScreen(
         onClearMessages()
         try {
             val intent = AccountManager.newChooseAccountIntent(
-                null, // selectedAccount
-                null, // allowableAccounts
-                arrayOf("com.google"), // allowableAccountTypes (filter to Google accounts)
-                null, // descriptionOverrideText
-                null, // addAccountAuthTokenType
-                null, // addAccountRequiredFeatures
-                null  // addAccountOptions
+                null,
+                null,
+                arrayOf("com.google"),
+                null,
+                null,
+                null,
+                null
             )
             accountPickerLauncher.launch(intent)
         } catch (e: Exception) {
-            // If device cannot open account picker (e.g., bare emulator without Play services), fallback gracefully
-            if (googleAccountEmail.isNotBlank()) {
-                onGoogleSignInSubmit(googleAccountEmail.trim(), googleAccountName.trim(), "Public Resident")
-            } else {
-                localError = "Could not open system account selector. Please enter your Google email below."
+            // If device cannot open account picker, fallback gracefully to manual entry
+            isGoogleAccountSelected = true
+            if (googleAccountEmail.isBlank()) {
+                localError = "Please enter your Google account email and password below."
             }
-        }
-    }
-
-    // OTP Timer Effect
-    LaunchedEffect(isOtpTimerActive, otpTimerSeconds) {
-        if (isOtpTimerActive && otpTimerSeconds > 0) {
-            delay(1000L)
-            otpTimerSeconds -= 1
-        } else if (otpTimerSeconds == 0) {
-            isOtpTimerActive = false
         }
     }
 
     val context = LocalContext.current
     val activity = context as? Activity
-    // If user is not yet authenticated (onBack == null), back button safely finishes/exits app
     BackHandler(enabled = onBack == null) {
         activity?.finish()
     }
@@ -298,7 +309,7 @@ fun LoginScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = SapphireNavy
                             )
                         }
                     } else {
@@ -306,48 +317,54 @@ fun LoginScreen(
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
                         color = ColorReceivedGreen.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(20.dp),
                         border = BorderStroke(1.dp, ColorReceivedGreen.copy(alpha = 0.35f))
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = "Secured",
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
                                 tint = ColorReceivedGreen,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(13.dp)
                             )
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Secure Verification • TLS 256-Bit",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                fontWeight = FontWeight.SemiBold,
-                                color = ColorReceivedGreen
+                                text = "Citizen Transparency Portal",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = ColorReceivedGreen
+                                )
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
 
-                // 2. Society Hero Card
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 2. Official Header Hero Banner
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 14.dp),
+                        .padding(bottom = 16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                    colors = CardDefaults.cardColors(containerColor = SapphireNavy),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(
-                                brush = Brush.horizontalGradient(
+                                Brush.verticalGradient(
                                     colors = listOf(SapphireNavy, SocietyTealDark)
                                 )
                             )
-                            .padding(18.dp)
+                            .padding(20.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -355,38 +372,23 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Security,
-                                        contentDescription = null,
-                                        tint = IndianSaffron,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "RESIDENT & PUBLIC PORTAL",
-                                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.1.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = IndianSaffron
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = societyInfo?.name?.ifBlank { "Society Ledger" } ?: "Society Ledger",
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Bold,
+                                    text = "Society Ledger",
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontWeight = FontWeight.Black,
                                         color = Color.White
                                     )
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Log in securely to view all societies, approved ledgers, and contribution receipts.",
+                                    text = "Transparent Public Governance • Instant Audited Accounts",
                                     style = MaterialTheme.typography.bodySmall.copy(
-                                        color = Color.White.copy(alpha = 0.85f)
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp
                                     )
                                 )
                             }
-
+                            Spacer(modifier = Modifier.width(12.dp))
                             Box(
                                 modifier = Modifier
                                     .size(46.dp)
@@ -405,7 +407,7 @@ fun LoginScreen(
                     }
                 }
 
-                // 3. Method Selection Segmented Tabs: Google / Social and Mobile OTP ONLY
+                // 3. Segmented Tabs: Google Sign-In & Email Sign-In
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -419,32 +421,42 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .padding(4.dp)
                     ) {
-                        // Google & Social Tab
-                        val isGoogle = selectedMethod == AuthMethodOption.GOOGLE_SOCIAL
+                        // Google Tab
+                        val isGoogle = selectedMethod == AuthMethodOption.GOOGLE
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isGoogle) MaterialTheme.colorScheme.surface else Color.Transparent)
                                 .clickable {
-                                    selectedMethod = AuthMethodOption.GOOGLE_SOCIAL
+                                    selectedMethod = AuthMethodOption.GOOGLE
                                     localError = null
                                     onClearMessages()
                                 }
                                 .padding(vertical = 10.dp)
-                                .testTag("tab_google_social"),
+                                .testTag("tab_continue_with_google"),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = null,
-                                    tint = if (isGoogle) SapphireNavy else Slate600,
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color.White,
                                     modifier = Modifier.size(18.dp)
-                                )
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "G",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFF4285F4),
+                                                fontSize = 11.sp
+                                            )
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Google / Social",
+                                    text = "Continue with Google",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (isGoogle) FontWeight.Bold else FontWeight.Medium,
                                         color = if (isGoogle) SapphireNavy else Slate600
@@ -453,35 +465,35 @@ fun LoginScreen(
                             }
                         }
 
-                        // Mobile OTP Tab
-                        val isMobile = selectedMethod == AuthMethodOption.MOBILE_OTP
+                        // Email Sign-In Tab
+                        val isEmail = selectedMethod == AuthMethodOption.EMAIL
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isMobile) MaterialTheme.colorScheme.surface else Color.Transparent)
+                                .background(if (isEmail) MaterialTheme.colorScheme.surface else Color.Transparent)
                                 .clickable {
-                                    selectedMethod = AuthMethodOption.MOBILE_OTP
+                                    selectedMethod = AuthMethodOption.EMAIL
                                     localError = null
                                     onClearMessages()
                                 }
                                 .padding(vertical = 10.dp)
-                                .testTag("tab_mobile_otp"),
+                                .testTag("tab_email_signin"),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Phone,
+                                    imageVector = Icons.Default.Email,
                                     contentDescription = null,
-                                    tint = if (isMobile) SocietyTealPrimary else Slate600,
+                                    tint = if (isEmail) SocietyTealPrimary else Slate600,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Mobile OTP",
+                                    text = "Email Sign In",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = if (isMobile) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isMobile) SocietyTealPrimary else Slate600
+                                        fontWeight = if (isEmail) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isEmail) SocietyTealPrimary else Slate600
                                     )
                                 )
                             }
@@ -512,19 +524,19 @@ fun LoginScreen(
                         ) { method ->
                             when (method) {
                                 // -------------------------------------------------------------
-                                // A. GOOGLE & SOCIAL SIGN-IN FLOW
+                                // A. CONTINUE WITH GOOGLE FLOW
                                 // -------------------------------------------------------------
-                                AuthMethodOption.GOOGLE_SOCIAL -> {
+                                AuthMethodOption.GOOGLE -> {
                                     Column {
                                         Text(
-                                            text = "Google & Social Sign In",
+                                            text = "Continue with Google",
                                             style = MaterialTheme.typography.titleMedium.copy(
-                                              fontWeight = FontWeight.Bold,
-                                              color = Slate900
+                                                fontWeight = FontWeight.Bold,
+                                                color = Slate900
                                             )
                                         )
                                         Text(
-                                            text = "Select your Google email from your phone to continue as a public resident.",
+                                            text = "Sign in with your Google account credentials to access all resident societies in transparent view.",
                                             style = MaterialTheme.typography.bodySmall.copy(color = Slate600),
                                             modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
                                         )
@@ -536,7 +548,7 @@ fun LoginScreen(
                                             border = BorderStroke(1.dp, IndianSaffron.copy(alpha = 0.35f)),
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(bottom = 12.dp)
+                                                .padding(bottom = 14.dp)
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(10.dp),
@@ -550,7 +562,7 @@ fun LoginScreen(
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = "Every user first registers as Public. You will access all societies in transparent public view. Society committees can add you to their member directory later.",
+                                                    text = "Every user first registers as Public. You will access all societies in transparent public view. Society committees can assign you member privileges later.",
                                                     style = MaterialTheme.typography.bodySmall.copy(
                                                         fontSize = 11.sp,
                                                         color = MaterialTheme.colorScheme.onSurface
@@ -559,7 +571,7 @@ fun LoginScreen(
                                             }
                                         }
 
-                                        // Primary Google Sign-In Button (launches phone email chooser)
+                                        // Primary Google Sign-In Button
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
                                             color = MaterialTheme.colorScheme.surface,
@@ -578,7 +590,6 @@ fun LoginScreen(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.Center
                                             ) {
-                                                // Google G icon badge
                                                 Surface(
                                                     shape = CircleShape,
                                                     color = Color.White,
@@ -606,121 +617,27 @@ fun LoginScreen(
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(10.dp))
-
-                                        // Button to explicitly choose device account
-                                        OutlinedButton(
-                                            onClick = { launchGoogleAccountChooser() },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(44.dp)
-                                                .testTag("choose_google_account_phone_button"),
-                                            shape = RoundedCornerShape(10.dp),
-                                            border = BorderStroke(1.dp, SapphireNavy.copy(alpha = 0.5f))
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AccountCircle,
-                                                    contentDescription = null,
-                                                    tint = SapphireNavy,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = "Select Google Account from Phone",
-                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = SapphireNavy
-                                                    )
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(12.dp))
-
-                                        // Other Social Media Sign-In Options (Apple, Facebook, Twitter / X)
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            // Apple Sign In
-                                            Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = Color(0xFF1A1A1A),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(40.dp)
-                                                    .clickable {
-                                                        onGoogleSignInSubmit("user@apple.com", "Apple User", "Public Resident")
-                                                    }
-                                                    .testTag("apple_sign_in_button")
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.Center
-                                                ) {
-                                                    Text(" Apple", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                }
-                                            }
-
-                                            // Facebook Sign In
-                                            Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = Color(0xFF1877F2),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(40.dp)
-                                                    .clickable {
-                                                        onGoogleSignInSubmit("fb.user@facebook.com", "Facebook User", "Public Resident")
-                                                    }
-                                                    .testTag("facebook_sign_in_button")
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.Center
-                                                ) {
-                                                    Text("f Facebook", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                }
-                                            }
-
-                                            // Twitter / X Sign In
-                                            Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = Color(0xFF0F1419),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(40.dp)
-                                                    .clickable {
-                                                        onGoogleSignInSubmit("x.user@x.com", "X Citizen", "Public Resident")
-                                                    }
-                                                    .testTag("twitter_x_sign_in_button")
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.Center
-                                                ) {
-                                                    Text("𝕏 Twitter", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                                }
-                                            }
-                                        }
-
                                         Spacer(modifier = Modifier.height(14.dp))
 
-                                        // Fallback manual email input
+                                        // Account Credentials & Password Section
                                         Text(
-                                            text = "Or enter Google account manually:",
-                                            style = MaterialTheme.typography.labelSmall.copy(color = Slate600),
+                                            text = "Google Account Credentials & Security:",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = Slate600,
+                                                fontWeight = FontWeight.Bold
+                                            ),
                                             modifier = Modifier.padding(bottom = 6.dp)
                                         )
 
+                                        // Google Email Input
                                         OutlinedTextField(
                                             value = googleAccountEmail,
-                                            onValueChange = { googleAccountEmail = it },
-                                            label = { Text("Google Account Email") },
-                                            placeholder = { Text("Enter Google email") },
+                                            onValueChange = {
+                                                googleAccountEmail = it
+                                                isGoogleAccountSelected = true
+                                            },
+                                            label = { Text("Google Account Email *") },
+                                            placeholder = { Text("e.g. resident@gmail.com") },
                                             leadingIcon = {
                                                 Icon(Icons.Default.Email, contentDescription = null, tint = SapphireNavy)
                                             },
@@ -737,11 +654,53 @@ fun LoginScreen(
 
                                         Spacer(modifier = Modifier.height(10.dp))
 
+                                        // Password Required (Points 9 & 10)
+                                        OutlinedTextField(
+                                            value = googleAccountPassword,
+                                            onValueChange = { googleAccountPassword = it },
+                                            label = { Text("Account Password *") },
+                                            placeholder = { Text("Enter account password") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Lock, contentDescription = null, tint = SapphireNavy)
+                                            },
+                                            trailingIcon = {
+                                                IconButton(onClick = { isGooglePasswordVisible = !isGooglePasswordVisible }) {
+                                                    Icon(
+                                                        imageVector = if (isGooglePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                        contentDescription = "Toggle password"
+                                                    )
+                                                }
+                                            },
+                                            visualTransformation = if (isGooglePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("google_password_input"),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = SapphireNavy,
+                                                unfocusedBorderColor = Slate200
+                                            )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // First-Time Registration Fields: Name and Unique Phone (Point 11)
+                                        Text(
+                                            text = "Profile & Phone Details (First-Time Setup):",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = Slate600,
+                                                fontWeight = FontWeight.Bold
+                                            ),
+                                            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
+                                        )
+
                                         OutlinedTextField(
                                             value = googleAccountName,
                                             onValueChange = { googleAccountName = it },
-                                            label = { Text("Display Name") },
-                                            placeholder = { Text("Enter display name") },
+                                            label = { Text("Full Name (Display Name) *") },
+                                            placeholder = { Text("Enter your full name") },
                                             leadingIcon = {
                                                 Icon(Icons.Default.Person, contentDescription = null, tint = SapphireNavy)
                                             },
@@ -756,14 +715,69 @@ fun LoginScreen(
                                             )
                                         )
 
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        val googleCleanPhone = googleAccountPhone.filter { it.isDigit() }
+                                        val isGooglePhoneDuplicate = isPhoneNumberDuplicate(googleCleanPhone)
+                                        OutlinedTextField(
+                                            value = googleCleanPhone,
+                                            onValueChange = { input ->
+                                                val digits = input.filter { it.isDigit() }
+                                                if (digits.length <= 10) googleAccountPhone = digits
+                                            },
+                                            label = { Text("10-Digit Mobile Phone *") },
+                                            placeholder = { Text("9876543210") },
+                                            prefix = { Text("+91 ") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Phone, contentDescription = null, tint = SapphireNavy)
+                                            },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                            isError = isGooglePhoneDuplicate,
+                                            supportingText = {
+                                                if (isGooglePhoneDuplicate) {
+                                                    Text("Phone number is already registered in backend! Please use a unique number.", color = MaterialTheme.colorScheme.error)
+                                                } else {
+                                                    Text("Must be unique from previous numbers in backend")
+                                                }
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("google_phone_input"),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = SapphireNavy,
+                                                unfocusedBorderColor = Slate200
+                                            )
+                                        )
+
                                         Spacer(modifier = Modifier.height(16.dp))
 
+                                        // Submit Button
                                         Button(
                                             onClick = {
-                                                if (googleAccountEmail.isNotBlank()) {
-                                                    onGoogleSignInSubmit(googleAccountEmail.trim(), googleAccountName.trim(), "Public Resident")
-                                                } else {
+                                                val trimmedEmail = googleAccountEmail.trim()
+                                                val trimmedPwd = googleAccountPassword.trim()
+                                                val trimmedPhone = googleAccountPhone.trim()
+
+                                                if (trimmedEmail.isBlank()) {
                                                     localError = "Please select or enter your Google email address."
+                                                } else if (trimmedPwd.isBlank()) {
+                                                    localError = "Please enter your account password."
+                                                } else if (trimmedPhone.isNotBlank() && trimmedPhone.length != 10) {
+                                                    localError = "Phone number must be exactly 10 digits."
+                                                } else if (isPhoneNumberDuplicate(trimmedPhone)) {
+                                                    localError = "This phone number is already registered in the backend. Please use a unique number."
+                                                } else {
+                                                    localError = null
+                                                    onClearMessages()
+                                                    onGoogleSignInSubmit(
+                                                        trimmedEmail,
+                                                        googleAccountName.trim(),
+                                                        "Public Resident",
+                                                        trimmedPhone,
+                                                        trimmedPwd
+                                                    )
                                                 }
                                             },
                                             enabled = !isLoading,
@@ -778,7 +792,7 @@ fun LoginScreen(
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     AuthButtonLottieLoader(size = 22.dp, tint = Color.White)
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Authenticating...", fontWeight = FontWeight.Bold)
+                                                    Text("Signing in...", fontWeight = FontWeight.Bold)
                                                 }
                                             } else {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -792,114 +806,61 @@ fun LoginScreen(
                                 }
 
                                 // -------------------------------------------------------------
-                                // B. MOBILE NUMBER & OTP VERIFICATION FLOW
+                                // B. EMAIL SIGN-IN & REGISTRATION FLOW (NO OTP)
                                 // -------------------------------------------------------------
-                                AuthMethodOption.MOBILE_OTP -> {
+                                AuthMethodOption.EMAIL -> {
                                     Column {
                                         Text(
-                                            text = if (!isOtpSent) "Mobile Number Verification" else "Enter 6-Digit OTP",
+                                            text = if (isEmailRegisterMode) "Create Resident Account" else "Email Sign In",
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Slate900
                                             )
                                         )
                                         Text(
-                                            text = if (!isOtpSent) {
-                                                "Enter your 10-digit mobile number to receive a secure login OTP."
+                                            text = if (isEmailRegisterMode) {
+                                                "Enter your details to create a free citizen account. No OTP verification required."
                                             } else {
-                                                "Verification code sent to +91 $mobileNumber."
+                                                "Enter your registered email and password to enter the portal."
                                             },
                                             style = MaterialTheme.typography.bodySmall.copy(color = Slate600),
-                                            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                                            modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
                                         )
 
-                                        // Public Registration Notice Badge
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = IndianSaffron.copy(alpha = 0.10f),
-                                            border = BorderStroke(1.dp, IndianSaffron.copy(alpha = 0.35f)),
+                                        // Toggle between Sign In and Register
+                                        Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(bottom = 12.dp)
+                                                .padding(bottom = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Info,
-                                                    contentDescription = null,
-                                                    tint = IndianSaffron,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = "Every user first registers as Public. You will access all societies in transparent public view. Society committees can add you to their member directory later.",
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontSize = 11.sp,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                )
-                                            }
+                                            FilterChip(
+                                                selected = !isEmailRegisterMode,
+                                                onClick = {
+                                                    isEmailRegisterMode = false
+                                                    localError = null
+                                                },
+                                                label = { Text("Sign In", fontWeight = FontWeight.SemiBold) },
+                                                modifier = Modifier.weight(1f).testTag("chip_email_login_mode")
+                                            )
+                                            FilterChip(
+                                                selected = isEmailRegisterMode,
+                                                onClick = {
+                                                    isEmailRegisterMode = true
+                                                    localError = null
+                                                },
+                                                label = { Text("Create Account", fontWeight = FontWeight.SemiBold) },
+                                                modifier = Modifier.weight(1f).testTag("chip_email_register_mode")
+                                            )
                                         }
 
-                                        if (!isOtpSent) {
-                                            // Step 1: Input Mobile Number & Resident Name
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    color = Slate200.copy(alpha = 0.5f),
-                                                    border = BorderStroke(1.dp, Slate200),
-                                                    modifier = Modifier.padding(end = 8.dp)
-                                                ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 15.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = "🇮🇳 +91",
-                                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                                        )
-                                                    }
-                                                }
-
-                                                OutlinedTextField(
-                                                    value = mobileNumber,
-                                                    onValueChange = {
-                                                        if (it.length <= 10) {
-                                                            mobileNumber = it
-                                                            localError = null
-                                                            onClearMessages()
-                                                        }
-                                                    },
-                                                    label = { Text("Mobile Number *") },
-                                                    placeholder = { Text("Enter 10-digit mobile number") },
-                                                    leadingIcon = {
-                                                        Icon(Icons.Default.Phone, contentDescription = null, tint = SocietyTealPrimary)
-                                                    },
-                                                    singleLine = true,
-                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .testTag("mobile_number_input"),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = SocietyTealPrimary,
-                                                        unfocusedBorderColor = Slate200
-                                                    )
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.height(12.dp))
-
+                                        if (isEmailRegisterMode) {
+                                            // Full Name Input
                                             OutlinedTextField(
-                                                value = residentName,
-                                                onValueChange = { residentName = it },
-                                                label = { Text("Full Name / Flat Owner (Optional)") },
-                                                placeholder = { Text("Enter full name") },
+                                                value = emailResidentName,
+                                                onValueChange = { emailResidentName = it },
+                                                label = { Text("Full Name *") },
+                                                placeholder = { Text("e.g. Anand Kumar") },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.Person, contentDescription = null, tint = SocietyTealPrimary)
                                                 },
@@ -907,99 +868,7 @@ fun LoginScreen(
                                                 shape = RoundedCornerShape(12.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .testTag("mobile_name_input"),
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = SocietyTealPrimary,
-                                                    unfocusedBorderColor = Slate200
-                                                )
-                                            )
-
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            Button(
-                                                onClick = {
-                                                    focusManager.clearFocus()
-                                                    val trimmed = mobileNumber.trim()
-                                                    if (trimmed.length < 10) {
-                                                        localError = "Please enter a valid 10-digit mobile number."
-                                                    } else {
-                                                        localError = null
-                                                        isOtpSent = true
-                                                        otpInput = ""
-                                                        otpTimerSeconds = 30
-                                                        isOtpTimerActive = true
-                                                    }
-                                                },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(50.dp)
-                                                    .testTag("send_otp_button"),
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = SocietyTealPrimary)
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text("Get Verification Code (Send OTP)", fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        } else {
-                                            // Step 2: Enter & Verify 6-digit OTP
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = Slate200.copy(alpha = 0.4f),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(10.dp),
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                ) {
-                                                    Column {
-                                                        Text("Sent to +91 $mobileNumber", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
-                                                        Text("Enter the 6-digit OTP received", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = Slate600)
-                                                    }
-                                                    TextButton(
-                                                        onClick = {
-                                                            isOtpSent = false
-                                                            otpInput = ""
-                                                        }
-                                                    ) {
-                                                        Text("Change", style = MaterialTheme.typography.labelSmall, color = SocietyTealPrimary)
-                                                    }
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(14.dp))
-
-                                            OutlinedTextField(
-                                                value = otpInput,
-                                                onValueChange = {
-                                                    if (it.length <= 6) {
-                                                        otpInput = it
-                                                        localError = null
-                                                        onClearMessages()
-                                                    }
-                                                },
-                                                label = { Text("Enter 6-Digit OTP *") },
-                                                placeholder = { Text("Enter 6-digit OTP") },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Key, contentDescription = null, tint = SocietyTealPrimary)
-                                                },
-                                                singleLine = true,
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-                                                keyboardActions = KeyboardActions(onDone = {
-                                                    focusManager.clearFocus()
-                                                    if (otpInput.length == 6) {
-                                                        onPhoneOtpSubmit(mobileNumber.trim(), residentName.trim(), "Public Resident")
-                                                    } else {
-                                                        localError = "Please enter 6-digit verification OTP."
-                                                    }
-                                                }),
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("otp_input_field"),
+                                                    .testTag("email_reg_name_input"),
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = SocietyTealPrimary,
                                                     unfocusedBorderColor = Slate200
@@ -1008,64 +877,151 @@ fun LoginScreen(
 
                                             Spacer(modifier = Modifier.height(10.dp))
 
-                                            // Resend timer
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.End,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                if (isOtpTimerActive && otpTimerSeconds > 0) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(Icons.Default.Timer, contentDescription = null, tint = Slate600, modifier = Modifier.size(14.dp))
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Text("Resend in ${otpTimerSeconds}s", style = MaterialTheme.typography.labelSmall, color = Slate600)
-                                                    }
-                                                } else {
-                                                    TextButton(
-                                                        onClick = {
-                                                            otpTimerSeconds = 30
-                                                            isOtpTimerActive = true
-                                                            onClearMessages()
-                                                        }
-                                                    ) {
-                                                        Text("Resend OTP", style = MaterialTheme.typography.labelSmall, color = SocietyTealPrimary, fontWeight = FontWeight.Bold)
-                                                    }
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(16.dp))
-
-                                            Button(
-                                                onClick = {
-                                                    focusManager.clearFocus()
-                                                    val trimmedOtp = otpInput.trim()
-                                                    if (trimmedOtp.length != 6) {
-                                                        localError = "Please enter the 6-digit OTP sent to your phone."
+                                            // Unique 10-Digit Phone Number (Point 11)
+                                            val cleanEmailPhone = emailPhoneNumber.filter { it.isDigit() }
+                                            val isEmailPhoneDuplicate = isPhoneNumberDuplicate(cleanEmailPhone)
+                                            OutlinedTextField(
+                                                value = cleanEmailPhone,
+                                                onValueChange = { input ->
+                                                    val digits = input.filter { it.isDigit() }
+                                                    if (digits.length <= 10) emailPhoneNumber = digits
+                                                },
+                                                label = { Text("10-Digit Mobile Phone *") },
+                                                placeholder = { Text("9876543210") },
+                                                prefix = { Text("+91 ") },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Phone, contentDescription = null, tint = SocietyTealPrimary)
+                                                },
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                                isError = isEmailPhoneDuplicate,
+                                                supportingText = {
+                                                    if (isEmailPhoneDuplicate) {
+                                                        Text("Phone number is already registered in backend! Please use a unique number.", color = MaterialTheme.colorScheme.error)
                                                     } else {
-                                                        localError = null
-                                                        onPhoneOtpSubmit(mobileNumber.trim(), residentName.trim(), "Public Resident")
+                                                        Text("Must be unique from previous numbers in backend")
                                                     }
                                                 },
-                                                enabled = !isLoading,
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(12.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(50.dp)
-                                                    .testTag("verify_otp_button"),
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = SocietyTealPrimary)
-                                            ) {
-                                                if (isLoading) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        AuthButtonLottieLoader(size = 22.dp, tint = Color.White)
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Verifying OTP...", fontWeight = FontWeight.Bold)
+                                                    .testTag("email_reg_phone_input"),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = SocietyTealPrimary,
+                                                    unfocusedBorderColor = Slate200
+                                                )
+                                            )
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+                                        }
+
+                                        // Email Input
+                                        OutlinedTextField(
+                                            value = emailInput,
+                                            onValueChange = { emailInput = it },
+                                            label = { Text("Email Address *") },
+                                            placeholder = { Text("resident@society.org") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Email, contentDescription = null, tint = SocietyTealPrimary)
+                                            },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("email_address_input"),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = SocietyTealPrimary,
+                                                unfocusedBorderColor = Slate200
+                                            )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Password Input
+                                        OutlinedTextField(
+                                            value = emailPassword,
+                                            onValueChange = { emailPassword = it },
+                                            label = { Text("Password *") },
+                                            placeholder = { Text("Enter password (min 6 characters)") },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Lock, contentDescription = null, tint = SocietyTealPrimary)
+                                            },
+                                            trailingIcon = {
+                                                IconButton(onClick = { isEmailPasswordVisible = !isEmailPasswordVisible }) {
+                                                    Icon(
+                                                        imageVector = if (isEmailPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                        contentDescription = "Toggle password"
+                                                    )
+                                                }
+                                            },
+                                            visualTransformation = if (isEmailPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("email_password_input"),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = SocietyTealPrimary,
+                                                unfocusedBorderColor = Slate200
+                                            )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        // Action Button: Sign In or Create Account
+                                        Button(
+                                            onClick = {
+                                                val trimmedEmail = emailInput.trim()
+                                                val trimmedPwd = emailPassword.trim()
+                                                val trimmedPhone = emailPhoneNumber.trim()
+                                                val trimmedName = emailResidentName.trim()
+
+                                                if (trimmedEmail.isBlank()) {
+                                                    localError = "Please enter your email address."
+                                                } else if (trimmedPwd.length < 6) {
+                                                    localError = "Password must be at least 6 characters long."
+                                                } else if (isEmailRegisterMode) {
+                                                    if (trimmedName.isBlank()) {
+                                                        localError = "Please enter your full name."
+                                                    } else if (trimmedPhone.length != 10) {
+                                                        localError = "Please enter a valid 10-digit mobile phone number."
+                                                    } else if (isPhoneNumberDuplicate(trimmedPhone)) {
+                                                        localError = "This phone number is already registered in the backend. Please use a unique number."
+                                                    } else {
+                                                        localError = null
+                                                        onClearMessages()
+                                                        onRegisterSubmit(trimmedName, trimmedEmail, trimmedPhone, trimmedPwd)
                                                     }
                                                 } else {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Verify OTP & Continue", fontWeight = FontWeight.Bold)
-                                                    }
+                                                    localError = null
+                                                    onClearMessages()
+                                                    onLoginSubmit(trimmedEmail, trimmedPwd)
+                                                }
+                                            },
+                                            enabled = !isLoading,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(50.dp)
+                                                .testTag("email_submit_button"),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SocietyTealPrimary)
+                                        ) {
+                                            if (isLoading) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    AuthButtonLottieLoader(size = 22.dp, tint = Color.White)
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(if (isEmailRegisterMode) "Creating account..." else "Signing in...", fontWeight = FontWeight.Bold)
+                                                }
+                                            } else {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        if (isEmailRegisterMode) "Create Account & Sign In" else "Sign In",
+                                                        fontWeight = FontWeight.Bold
+                                                    )
                                                 }
                                             }
                                         }
@@ -1144,10 +1100,10 @@ fun LoginScreen(
                             }
                         }
 
-                        // Lottie Animated Loading Feedback
+                        // Animated Loading Feedback
                         AuthLoadingFeedbackBanner(
                             visible = isLoading,
-                            isRegister = false
+                            isRegister = isEmailRegisterMode
                         )
                     }
                 }
@@ -1174,7 +1130,7 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Mandatory Sign-In: Select your Google account or verify with Mobile OTP to enter the portal.",
+                            text = "Mandatory Sign-In: Continue with Google or Email credentials to view society accounts.",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Slate600,
                                 fontWeight = FontWeight.Medium

@@ -288,8 +288,8 @@ fun ReceiptDialog(
                         HorizontalDivider(thickness = 1.dp, color = Color(0xFFCFD8DC))
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Public Join & Uptodown App Store QR Code Card inside Receipt
-                        val joinPayload = "https://society-ledger.en.uptodown.com/android?society_id=${societyInfo.registrationNo}"
+                        // Public Join & Google Play Store App QR Code Card inside Receipt
+                        val joinPayload = "https://play.google.com/store/apps/details?id=com.societyledger.app"
                         val qrBitmap = remember(joinPayload) {
                             try {
                                 QrCodeGenerator.generateQrBitmap(
@@ -314,7 +314,7 @@ fun ReceiptDialog(
                             if (qrBitmap != null) {
                                 androidx.compose.foundation.Image(
                                     bitmap = qrBitmap.asImageBitmap(),
-                                    contentDescription = "Uptodown App Store QR Code",
+                                    contentDescription = "Google Play Store QR Code",
                                     modifier = Modifier
                                         .size(60.dp)
                                         .border(1.dp, Color.White, RoundedCornerShape(4.dp))
@@ -323,13 +323,13 @@ fun ReceiptDialog(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "📲 Scan to Get App on Uptodown App Store",
+                                    text = "📲 Scan to Download on Google Play Store",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = SapphireNavy
                                 )
                                 Text(
-                                    text = "Download Society Ledger from Uptodown App Store or view online ledger. No password required for Public Audit.",
+                                    text = "Download Society Ledger from Google Play Store or view online. Transparent public ledger audit for all residents.",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
                                     color = Color.DarkGray
                                 )
@@ -514,7 +514,7 @@ fun ReceiptDialog(
                 ) {
                     Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share App APK & Uptodown Link", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("Share App APK & Play Store Link", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 }
             }
         }

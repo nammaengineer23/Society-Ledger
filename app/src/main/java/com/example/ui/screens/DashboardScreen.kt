@@ -256,30 +256,25 @@ fun DashboardScreen(
                             else -> Color(0xFF2E7D32)
                         }
 
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Your Account: Collected ₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.totalReceivedAmount)} (${officerAccount.receivedCount}) • Spent ₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.totalExpensesAmount)}",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Net $officerSign₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.netBalance)} (${officerAccount.balanceStatusText})",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = officerNetColor
-                                )
-                            }
+                            Text(
+                                text = "Your Account: Collected ₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.totalReceivedAmount)} (${officerAccount.receivedCount}) • Spent ₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.totalExpensesAmount)}",
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Net Position: $officerSign₹${String.format(java.util.Locale.US, "%,.0f", officerAccount.netBalance)} (${officerAccount.balanceStatusText})",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.Bold,
+                                color = officerNetColor
+                            )
                         }
                     }
                 } else {
@@ -1110,59 +1105,7 @@ fun DashboardScreen(
         }
 
         // Audit & Transparency Share Bar
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = strings.auditReportsTitle,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = strings.auditReportsSubtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                ExportHelper.exportToCsv(context, societyInfo, donations, expenses)
-                            },
-                            modifier = Modifier.testTag("dashboard_export_csv_btn")
-                        ) {
-                            Icon(imageVector = Icons.Default.Download, contentDescription = "CSV", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(strings.exportCsvBtn)
-                        }
-
-                        Button(
-                            onClick = {
-                                ExportHelper.shareAuditSummaryText(context, societyInfo, donations, expenses)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = SapphireNavy),
-                            modifier = Modifier.testTag("dashboard_share_statement_btn")
-                        ) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(strings.shareStatement)
-                        }
-                    }
-                }
-            }
-        }
 
         // -------------------------------------------------------------------------
         // Home / All Society Directory - Prominent Large Action Card & Button

@@ -111,7 +111,7 @@ fun DonationsScreen(
         modifier = modifier.testTag("donations_screen"),
         floatingActionButton = {
             AnimatedVisibility(
-                visible = isAdmin,
+                visible = isAdmin || activeMember != null,
                 enter = scaleIn() + fadeIn(),
                 exit = scaleOut() + fadeOut(),
                 label = "fab_add_donation_visibility"

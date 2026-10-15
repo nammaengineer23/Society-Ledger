@@ -17,6 +17,9 @@ import java.util.Locale
 object WhatsAppReminderHelper {
 
     private val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    const val PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.societyledger.app"
+    private const val APP_DOWNLOAD_FOOTER_EN = "\n\n📱 *Download Society Ledger on Google Play Store:*\n$PLAY_STORE_URL\n(Instant digital receipts, live transparent balance sheets & audited accounts)"
+    private const val APP_DOWNLOAD_FOOTER_KN = "\n\n📱 *ಗೂಗಲ್ ಪ್ಲೇ ಸ್ಟೋರ್‌ನಿಂದ ಸೊಸೈಟಿ ಲೆಡ್ಜರ್ ಆ್ಯಪ್ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ:*\n$PLAY_STORE_URL\n(ಡಿಜಿಟಲ್ ರಶೀದಿಗಳು ಮತ್ತು ಪಾರದರ್ಶಕ ಲೆಕ್ಕಪತ್ರ ವೀಕ್ಷಣೆಗಾಗಿ)"
 
     fun sendPendingReminder(
         context: Context,
@@ -42,6 +45,7 @@ object WhatsAppReminderHelper {
                 append("ಹಣ ವರ್ಗಾವಣೆ ಮಾಡಿದ ನಂತರ, ದಯವಿಟ್ಟು ಸ್ಕ್ರೀನ್‌ಶಾಟ್ ಅಥವಾ UTR ಸಂಖ್ಯೆಯನ್ನು ಕಳುಹಿಸಿ ತಕ್ಷಣವೇ ಡಿಜಿಟಲ್ ರಶೀದಿಯನ್ನು ಪಡೆದುಕೊಳ್ಳಿ.\n\n")
                 append("ಸೊಸೈಟಿಯ ಅಭಿವೃದ್ಧಿಗೆ ತಮ್ಮ ಅಮೂಲ್ಯ ಕೊಡುಗೆಗೆ ಅನಂತ ಧನ್ಯವಾದಗಳು!\n")
                 append("ಇಂತಿ ನಿಮ್ಮ,\n*ಆಡಳಿತ ಸಮಿತಿ*\n${societyInfo.name}")
+                append(APP_DOWNLOAD_FOOTER_KN)
             }
         } else {
             buildString {
@@ -58,6 +62,7 @@ object WhatsAppReminderHelper {
                 append("Once transferred, kindly reply with the transaction screenshot / UTR number for your instant digital receipt.\n\n")
                 append("Thank you for your valuable support to our community!\n")
                 append("Warm regards,\n*Managing Committee*\n${societyInfo.name}")
+                append(APP_DOWNLOAD_FOOTER_EN)
             }
         }
 
@@ -92,6 +97,7 @@ object WhatsAppReminderHelper {
                 append("━━━━━━━━━━━━━━━━━━━━\n")
                 append("🙏 _ಸೊಸೈಟಿಯ ಕ್ಷೇಮಾಭಿವೃದ್ಧಿಗೆ ತಮ್ಮ ಅಮೂಲ್ಯ ಕೊಡುಗೆಗಾಗಿ ಹಾರ್ದಿಕ ಧನ್ಯವಾದಗಳು!_\n\n")
                 append("ಸೊಸೈಟಿ ಕಚೇರಿ: ${societyInfo.address}")
+                append(APP_DOWNLOAD_FOOTER_KN)
             }
         } else {
             buildString {
@@ -111,6 +117,7 @@ object WhatsAppReminderHelper {
                 append("━━━━━━━━━━━━━━━━━━━━\n")
                 append("🙏 _Thank you for your generous contribution towards the development and welfare of our society!_\n\n")
                 append("Society Office: ${societyInfo.address}")
+                append(APP_DOWNLOAD_FOOTER_EN)
             }
         }
 
@@ -143,6 +150,7 @@ object WhatsAppReminderHelper {
                 append("📲 *ಸೊಸೈಟಿ UPI:* `${societyInfo.upiId}`\n\n")
                 append("ಪಾರದರ್ಶಕ ಸಮಾಜ ನಿರ್ಮಾಣಕ್ಕಾಗಿ ನಮ್ಮೊಂದಿಗೆ ಸಹಕರಿಸುತ್ತಿರುವ ಪ್ರತಿಯೊಬ್ಬ ಸದಸ್ಯರಿಗೂ ಧನ್ಯವಾದಗಳು.\n")
                 append("— *ಆಡಳಿತ ಸಮಿತಿ*")
+                append(APP_DOWNLOAD_FOOTER_KN)
             }
         } else {
             buildString {
@@ -157,6 +165,7 @@ object WhatsAppReminderHelper {
                 append("📲 *Society UPI:* `${societyInfo.upiId}`\n\n")
                 append("Thank you to all donors and residents for supporting transparent community governance.\n")
                 append("— *Managing Committee*")
+                append(APP_DOWNLOAD_FOOTER_EN)
             }
         }
 
