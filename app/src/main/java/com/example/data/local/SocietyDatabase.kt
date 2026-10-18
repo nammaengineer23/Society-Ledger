@@ -75,6 +75,9 @@ abstract class SocietyDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_maintenance_charges_flatNo_billingPeriod ON maintenance_charges(flatNo, billingPeriod)"
+                )
             }
         }
 
