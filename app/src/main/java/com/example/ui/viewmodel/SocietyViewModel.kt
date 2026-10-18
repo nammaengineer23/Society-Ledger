@@ -13,6 +13,7 @@ import com.example.data.model.Donation
 import com.example.data.model.Expense
 import com.example.data.model.FinancialKPIs
 import com.example.data.model.Member
+import com.example.data.model.MaintenanceCharge
 import com.example.data.model.MonthlyFlowSummary
 import com.example.data.model.PaymentModeSummary
 import com.example.data.model.Pledge
@@ -50,7 +51,8 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         firestoreService = firestoreService,
         transactionDao = database.transactionDao(),
         pledgeDao = database.pledgeDao(),
-        committeeMemberDao = database.committeeMemberDao()
+        committeeMemberDao = database.committeeMemberDao(),
+        maintenanceChargeDao = database.maintenanceChargeDao()
     )
 
     private val _societyInfo = MutableStateFlow(preferences.getSocietyInfo())
@@ -145,6 +147,21 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     val allMembers: StateFlow<List<Member>> = repository.allMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val members: StateFlow<List<Member>> = allMembers
+
+    val maintenanceCharges: StateFlow<List<MaintenanceCharge>> = repository.allMaintenanceCharges
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addMaintenanceCharge(charge: MaintenanceCharge, onComplete: (Result<Long>) -> Unit = {}) {
+        viewModelScope.launch {
+            onComplete(runCatching { repository.addMaintenanceCharge(charge) })
+        }
+    }
+
+    fun updateMaintenanceCharge(charge: MaintenanceCharge, onComplete: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch {
+            onComplete(runCatching { repository.updateMaintenanceCharge(charge) })
+        }
+    }
 
     val allCommitteeMembers: StateFlow<List<CommitteeMember>> = repository.allCommitteeMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
