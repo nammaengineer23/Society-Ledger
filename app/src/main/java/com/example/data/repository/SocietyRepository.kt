@@ -75,7 +75,21 @@ class SocietyRepository(
             },
             updatedAt = System.currentTimeMillis()
         )
-        return dao.insert(normalized)
+        val id = dao.insert(normalized)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MAINTENANCE",
+                transactionId = id,
+                transactionRef = "${normalized.flatNo}/${normalized.billingPeriod}",
+                action = "CREATED",
+                reason = "Maintenance charge assessed",
+                performedById = normalized.recordedById,
+                performedByName = normalized.recordedByName.ifBlank { "Committee" },
+                performedByRole = "Treasurer",
+                newValueSummary = "amount=${normalized.amount}; paid=${normalized.amountPaid}; status=${normalized.status}"
+            )
+        )
+        return id
     }
 
     /** Updates a charge/payment record without processing money or contacting a payment gateway. */
@@ -99,7 +113,22 @@ class SocietyRepository(
             },
             updatedAt = System.currentTimeMillis()
         )
+        val before = dao.findById(charge.id)
         dao.update(normalized)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MAINTENANCE",
+                transactionId = normalized.id,
+                transactionRef = "${normalized.flatNo}/${normalized.billingPeriod}",
+                action = "UPDATED",
+                reason = "Maintenance charge or external payment record updated",
+                performedById = normalized.recordedById,
+                performedByName = normalized.recordedByName.ifBlank { "Committee" },
+                performedByRole = "Treasurer",
+                oldValueSummary = before?.let { "amount=${it.amount}; paid=${it.amountPaid}; status=${it.status}" }.orEmpty(),
+                newValueSummary = "amount=${normalized.amount}; paid=${normalized.amountPaid}; status=${normalized.status}"
+            )
+        )
     }
 
     init {
