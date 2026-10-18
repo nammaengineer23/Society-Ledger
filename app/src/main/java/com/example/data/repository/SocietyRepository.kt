@@ -6,6 +6,7 @@ import com.example.data.local.CommitteeMemberDao
 import com.example.data.local.DonationDao
 import com.example.data.local.ExpenseDao
 import com.example.data.local.MemberDao
+import com.example.data.local.MaintenanceChargeDao
 import com.example.data.local.PledgeDao
 import com.example.data.local.PreloadedData
 import com.example.data.local.SocietyPreferences
@@ -15,6 +16,7 @@ import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
 import com.example.data.model.Expense
 import com.example.data.model.Member
+import com.example.data.model.MaintenanceCharge
 import com.example.data.model.Pledge
 import com.example.data.model.Society
 import com.example.data.model.SocietyInfo
@@ -33,19 +35,72 @@ class SocietyRepository(
     private val firestoreService: FirestoreService = FirestoreService(),
     private val transactionDao: TransactionDao? = null,
     private val pledgeDao: PledgeDao? = null,
-    private val committeeMemberDao: CommitteeMemberDao? = null
+    private val committeeMemberDao: CommitteeMemberDao? = null,
+    private val maintenanceChargeDao: MaintenanceChargeDao? = null
 ) {
     val allMembers: Flow<List<Member>> = memberDao.getAllMembers()
     val allDonations: Flow<List<Donation>> = donationDao.getAllDonations()
     val pendingDonations: Flow<List<Donation>> = donationDao.getPendingDonations()
     val receivedDonations: Flow<List<Donation>> = donationDao.getReceivedDonations()
     val allExpenses: Flow<List<Expense>> = expenseDao.getAllExpenses()
+    val allMaintenanceCharges: Flow<List<MaintenanceCharge>> = maintenanceChargeDao?.observeAll() ?: flowOf(emptyList())
     val allAuditLogs: Flow<List<AuditLog>> = auditLogDao?.getAllAuditLogs() ?: flowOf(emptyList())
 
     val allTransactions: Flow<List<Transaction>> = transactionDao?.getAllTransactions() ?: flowOf(emptyList())
     val allPledges: Flow<List<Pledge>> = pledgeDao?.getAllPledges() ?: flowOf(emptyList())
     val pendingPledgesList: Flow<List<Pledge>> = pledgeDao?.getPendingPledges() ?: flowOf(emptyList())
     val allCommitteeMembers: Flow<List<CommitteeMember>> = committeeMemberDao?.getAllCommitteeMembers() ?: flowOf(emptyList())
+
+    /**
+     * Records a maintenance assessment. This is a ledger entry only; it never
+     * starts or collects an online payment.
+     */
+    suspend fun addMaintenanceCharge(charge: MaintenanceCharge): Long {
+        val dao = maintenanceChargeDao ?: error("Maintenance ledger is not configured")
+        require(charge.flatNo.isNotBlank()) { "Flat number is required" }
+        require(charge.billingPeriod.matches(Regex("\\d{4}-\\d{2}"))) { "Billing period must use YYYY-MM format" }
+        require(charge.amount > 0.0 && charge.amount.isFinite()) { "Charge amount must be greater than zero" }
+        require(charge.amountPaid >= 0.0 && charge.amountPaid <= charge.amount) { "Paid amount must be between zero and the charge amount" }
+        require(dao.findForFlatAndPeriod(charge.flatNo.trim(), charge.billingPeriod) == null) {
+            "A maintenance charge already exists for this flat and billing period"
+        }
+        val normalized = charge.copy(
+            flatNo = charge.flatNo.trim(),
+            amountPaid = charge.amountPaid,
+            status = when {
+                charge.status == "WAIVED" -> "WAIVED"
+                charge.amountPaid >= charge.amount -> "PAID"
+                charge.amountPaid > 0.0 -> "PARTIALLY_PAID"
+                else -> "OPEN"
+            },
+            updatedAt = System.currentTimeMillis()
+        )
+        return dao.insert(normalized)
+    }
+
+    /** Updates a charge/payment record without processing money or contacting a payment gateway. */
+    suspend fun updateMaintenanceCharge(charge: MaintenanceCharge) {
+        val dao = maintenanceChargeDao ?: error("Maintenance ledger is not configured")
+        require(charge.id > 0) { "A saved maintenance charge is required" }
+        require(charge.flatNo.isNotBlank()) { "Flat number is required" }
+        require(charge.amount > 0.0 && charge.amount.isFinite()) { "Charge amount must be greater than zero" }
+        require(charge.amountPaid >= 0.0 && charge.amountPaid <= charge.amount) { "Paid amount must be between zero and the charge amount" }
+        val duplicate = dao.findForFlatAndPeriod(charge.flatNo.trim(), charge.billingPeriod)
+        require(duplicate == null || duplicate.id == charge.id) {
+            "A maintenance charge already exists for this flat and billing period"
+        }
+        val normalized = charge.copy(
+            flatNo = charge.flatNo.trim(),
+            status = when {
+                charge.status == "WAIVED" -> "WAIVED"
+                charge.amountPaid >= charge.amount -> "PAID"
+                charge.amountPaid > 0.0 -> "PARTIALLY_PAID"
+                else -> "OPEN"
+            },
+            updatedAt = System.currentTimeMillis()
+        )
+        dao.update(normalized)
+    }
 
     init {
         try {
