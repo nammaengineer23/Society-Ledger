@@ -1,6 +1,7 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -9,7 +10,7 @@ import androidx.room.PrimaryKey
  * Payments are recorded as offline/external references only. This entity does not
  * initiate, collect, or process payments.
  */
-@Entity(tableName = "maintenance_charges")
+@Entity(tableName = "maintenance_charges", indices = [Index(value = ["flatNo", "billingPeriod"], unique = true)])
 data class MaintenanceCharge(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
