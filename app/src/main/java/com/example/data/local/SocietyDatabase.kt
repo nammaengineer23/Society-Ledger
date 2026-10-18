@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
 import com.example.data.model.Expense
+import com.example.data.model.MaintenanceCharge
 import com.example.data.model.Member
 import com.example.data.model.Pledge
 import com.example.data.model.Transaction
@@ -25,9 +27,10 @@ import kotlinx.coroutines.launch
         AuditLog::class,
         Transaction::class,
         Pledge::class,
-        CommitteeMember::class
+        CommitteeMember::class,
+        MaintenanceCharge::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class SocietyDatabase : RoomDatabase() {
@@ -38,10 +41,42 @@ abstract class SocietyDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun pledgeDao(): PledgeDao
     abstract fun committeeMemberDao(): CommitteeMemberDao
+    abstract fun maintenanceChargeDao(): MaintenanceChargeDao
 
     companion object {
         @Volatile
         private var INSTANCE: SocietyDatabase? = null
+
+        /**
+         * Adds the maintenance ledger without touching existing member, donation,
+         * expense, audit, transaction, pledge, or committee records.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS maintenance_charges (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        flatNo TEXT NOT NULL,
+                        memberId INTEGER NOT NULL,
+                        memberName TEXT NOT NULL,
+                        billingPeriod TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        dueDate INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        amountPaid REAL NOT NULL,
+                        paymentMode TEXT NOT NULL,
+                        paymentReference TEXT NOT NULL,
+                        notes TEXT NOT NULL,
+                        recordedById INTEGER NOT NULL,
+                        recordedByName TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
 
         fun getDatabase(
             context: Context,
@@ -53,6 +88,7 @@ abstract class SocietyDatabase : RoomDatabase() {
                     SocietyDatabase::class.java,
                     "society_management_database.db"
                 )
+                    .addMigrations(MIGRATION_5_6)
                     .addCallback(DatabaseCallback(scope))
                     .fallbackToDestructiveMigration()
                     .build()
