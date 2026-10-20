@@ -29,7 +29,7 @@ interface CommitteeMemberDao {
     @Query("SELECT * FROM committee_members WHERE role = :role LIMIT 1")
     suspend fun getCommitteeMemberByRole(role: String): CommitteeMember?
 
-    @Query("SELECT COUNT(*) FROM committee_members")
+    @Query("SELECT COUNT(*) FROM committee_members WHERE role NOT IN ('Resident Member', 'Donor')")
     suspend fun getCommitteeMemberCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
