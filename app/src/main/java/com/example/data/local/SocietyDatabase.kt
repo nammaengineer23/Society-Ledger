@@ -9,6 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.MaintenanceCharge
 import com.example.data.model.Member
@@ -28,9 +29,10 @@ import kotlinx.coroutines.launch
         Transaction::class,
         Pledge::class,
         CommitteeMember::class,
-        MaintenanceCharge::class
+        MaintenanceCharge::class,
+        Donor::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class SocietyDatabase : RoomDatabase() {
@@ -42,6 +44,7 @@ abstract class SocietyDatabase : RoomDatabase() {
     abstract fun pledgeDao(): PledgeDao
     abstract fun committeeMemberDao(): CommitteeMemberDao
     abstract fun maintenanceChargeDao(): MaintenanceChargeDao
+    abstract fun donorDao(): DonorDao
 
     companion object {
         @Volatile
@@ -81,6 +84,23 @@ abstract class SocietyDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS donors (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        phone TEXT NOT NULL,
+                        email TEXT NOT NULL,
+                        societyId TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_donors_name_phone_societyId ON donors(name, phone, societyId)")
+            }
+        }
+
         fun getDatabase(
             context: Context,
             scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -91,7 +111,7 @@ abstract class SocietyDatabase : RoomDatabase() {
                     SocietyDatabase::class.java,
                     "society_management_database.db"
                 )
-                    .addMigrations(MIGRATION_5_6)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(DatabaseCallback(scope))
                     .fallbackToDestructiveMigration()
                     .build()
