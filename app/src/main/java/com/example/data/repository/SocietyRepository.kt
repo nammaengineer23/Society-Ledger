@@ -521,18 +521,30 @@ class SocietyRepository(
             if (remoteMembers.isNotEmpty()) {
                 val currentLocalMembers = memberDao.getAllMembersList()
                 remoteMembers.forEach { remote ->
+                    // Legacy releases stored donors in the generic members collection.
+                    // Keep them in the donor directory, never as committee/member accounts.
+                    if (remote.role.equals("Resident Member", ignoreCase = true) ||
+                        remote.role.equals("Donor", ignoreCase = true)) {
+                        val donors = donorDao
+                        if (donors != null && remote.name.isNotBlank()) {
+                            val donorName = remote.name.trim()
+                            val donorPhone = remote.phone.trim()
+                            if (donors.findExisting(currentInfo.name, donorName, donorPhone) == null) {
+                                donors.insert(Donor(name = donorName, phone = donorPhone, email = remote.email.trim(), societyId = currentInfo.name))
+                            }
+                        }
+                        return@forEach
+                    }
                     val existing = (if (remote.id > 0) memberDao.getMemberById(remote.id) else null)
                         ?: (if (remote.email.isNotBlank()) memberDao.getMemberByEmail(remote.email) else null)
                         ?: (if (remote.phone.isNotBlank()) memberDao.getMemberByPhone(remote.phone) else null)
                         ?: currentLocalMembers.find { it.name.trim().equals(remote.name.trim(), ignoreCase = true) }
-
                     if (existing != null) {
                         memberDao.updateMember(remote.copy(id = existing.id))
                     } else {
                         memberDao.insertMember(remote.copy(id = 0L))
                     }
-                }
-            }
+                }            }
 
             val isFirstCloudSync = !(societyPreferences?.hasSyncedCloudData() ?: false)
 
