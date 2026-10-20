@@ -98,6 +98,18 @@ abstract class SocietyDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_donors_name_phone_societyId ON donors(name, phone, societyId)")
+                db.execSQL("""
+                    INSERT INTO donors (name, phone, email, societyId, createdAt, updatedAt)
+                    SELECT DISTINCT m.name, m.phone, m.email,
+                           COALESCE(cm.societyId, ''), m.createdAt, m.createdAt
+                    FROM members m
+                    LEFT JOIN committee_members cm
+                      ON lower(cm.name) = lower(m.name) AND cm.role = 'Resident Member'
+                    WHERE m.role = 'Resident Member' AND trim(m.name) != ''
+                """.trimIndent())
+                // These rows were created by the old donation flow, not by committee management.
+                db.execSQL("DELETE FROM committee_members WHERE role = 'Resident Member'")
+                db.execSQL("DELETE FROM members WHERE role = 'Resident Member'")
             }
         }
 
