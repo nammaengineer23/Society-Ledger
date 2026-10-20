@@ -168,9 +168,6 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     val allCommitteeMembers: StateFlow<List<CommitteeMember>> = repository.allCommitteeMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val allDonors: StateFlow<List<Donor>> = repository.allDonors
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     val allDonations: StateFlow<List<Donation>> = repository.allDonations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val donations: StateFlow<List<Donation>> = allDonations
