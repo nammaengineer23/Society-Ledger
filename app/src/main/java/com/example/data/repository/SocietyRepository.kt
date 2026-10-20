@@ -846,8 +846,7 @@ class SocietyRepository(
                     donors.updateContact(
                         id = existing.id,
                         phone = donorPhone.ifBlank { existing.phone },
-                        email = donorEmail.ifBlank { existing.email },
-                        updatedAt = System.currentTimeMillis()
+                        email = donorEmail.ifBlank { existing.email }
                     )
                 }
             } catch (e: Exception) {
