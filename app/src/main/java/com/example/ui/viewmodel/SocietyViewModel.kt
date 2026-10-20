@@ -10,6 +10,7 @@ import com.example.data.model.AuditLog
 import com.example.data.model.CategoryExpenseSummary
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.FinancialKPIs
 import com.example.data.model.Member
@@ -52,7 +53,8 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         transactionDao = database.transactionDao(),
         pledgeDao = database.pledgeDao(),
         committeeMemberDao = database.committeeMemberDao(),
-        maintenanceChargeDao = database.maintenanceChargeDao()
+        maintenanceChargeDao = database.maintenanceChargeDao(),
+        donorDao = database.donorDao()
     )
 
     private val _societyInfo = MutableStateFlow(preferences.getSocietyInfo())
@@ -164,6 +166,9 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     val allCommitteeMembers: StateFlow<List<CommitteeMember>> = repository.allCommitteeMembers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allDonors: StateFlow<List<Donor>> = repository.allDonors
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allDonations: StateFlow<List<Donation>> = repository.allDonations
