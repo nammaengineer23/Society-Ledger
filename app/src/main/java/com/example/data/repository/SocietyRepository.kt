@@ -1182,9 +1182,10 @@ class SocietyRepository(
         require(member.id > 0L) { "Save the committee member before recording an opening balance" }
         require(amount.isFinite() && amount >= 0.0) { "Opening amount must be finite and non-negative" }
         val existing = transactionDao?.getMemberLedgerList(member.id).orEmpty()
-        require(existing.none { it.transactionType == CommitteeMemberAccountBalance.OPENING_BALANCE }) {
-            "An opening balance has already been recorded for this member"
+        val existingOpening = existing.firstOrNull {
+            it.transactionType == CommitteeMemberAccountBalance.OPENING_BALANCE
         }
+        if (existingOpening != null) return existingOpening.id
         val entry = Transaction(
             transactionType = CommitteeMemberAccountBalance.OPENING_BALANCE,
             committeeMemberId = member.id,
@@ -1374,10 +1375,24 @@ class SocietyRepository(
     // Committee Members Operations
     // ==========================================
 
-    suspend fun insertCommitteeMember(member: CommitteeMember): Long {
+    suspend fun insertCommitteeMember(
+        member: CommitteeMember,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
+    ): Long {
+        require(openingBalance.isFinite() && openingBalance >= 0.0) {
+            "Opening balance must be finite and non-negative"
+        }
         val societyName = getSocietyInfo().name
         val localId = committeeMemberDao?.insertCommitteeMember(member) ?: 0L
         val withId = member.copy(id = if (member.id == 0L) localId else member.id)
+        if (withId.id > 0L) {
+            recordCommitteeMemberOpeningBalance(
+                member = withId,
+                amount = openingBalance,
+                notes = openingBalanceNotes
+            )
+        }
         try {
             val firestoreId = firestoreService.saveCommitteeMember(withId, societyName = societyName)
             if (firestoreId != null && firestoreId.isNotBlank()) {
