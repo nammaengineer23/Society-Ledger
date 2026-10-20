@@ -544,7 +544,8 @@ class SocietyRepository(
                     } else {
                         memberDao.insertMember(remote.copy(id = 0L))
                     }
-                }            }
+                }
+            }
 
             val isFirstCloudSync = !(societyPreferences?.hasSyncedCloudData() ?: false)
 
