@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
 import android.accounts.AccountManager
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import kotlinx.coroutines.launch
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -147,8 +153,8 @@ fun UserAuthScreen(
         isLoading = isLoading,
         errorMessage = errorMessage,
         successMessage = successMessage,
-        onGoogleSignInSubmit = { email, displayName, role, phone, password ->
-            userViewModel.loginWithGoogle(email, displayName, "Public Resident", phone, password)
+        onGoogleIdTokenSubmit = { idToken ->
+            userViewModel.loginWithGoogleIdToken(idToken)
         },
         onLoginSubmit = { email, password ->
             userViewModel.loginWithEmail(email, password)
@@ -185,6 +191,7 @@ fun LoginScreen(
     errorMessage: String? = null,
     successMessage: String? = null,
     onLoginSubmit: (email: String, password: String) -> Unit = { _, _ -> },
+    onGoogleIdTokenSubmit: (idToken: String) -> Unit = {},
     onGoogleSignInSubmit: (email: String, displayName: String, role: String, phone: String, password: String) -> Unit = { _, _, _, _, _ -> },
     onRegisterSubmit: (name: String, email: String, phone: String, password: String) -> Unit = { _, _, _, _ -> },
     onResetPassword: ((email: String) -> Unit)? = null,
@@ -272,6 +279,33 @@ fun LoginScreen(
 
     val context = LocalContext.current
     val activity = context as? Activity
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    fun launchVerifiedGoogleSignIn() {
+        localError = null
+        onClearMessages()
+        coroutineScope.launch {
+            try {
+                val serverClientId = context.getString(com.example.R.string.default_web_client_id)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(serverClientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                val credentialManager = CredentialManager.create(context)
+                val result = credentialManager.getCredential(context, request)
+                val googleCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
+                onGoogleIdTokenSubmit(googleCredential.idToken)
+            } catch (e: GetCredentialException) {
+                localError = e.message ?: "Google sign-in was cancelled or unavailable. Please try again."
+            } catch (e: Exception) {
+                localError = e.message ?: "Unable to verify your Google account. Please try again."
+            }
+        }
+    }
     BackHandler(enabled = onBack == null) {
         activity?.finish()
     }
@@ -581,7 +615,7 @@ fun LoginScreen(
                                                 .fillMaxWidth()
                                                 .height(52.dp)
                                                 .clickable {
-                                                    launchGoogleAccountChooser()
+                                                    launchVerifiedGoogleSignIn()
                                                 }
                                                 .testTag("google_sign_in_primary_button")
                                         ) {
