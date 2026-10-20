@@ -21,6 +21,6 @@ interface DonorDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(donor: Donor): Long
 
-    @Query("UPDATE donors SET phone = :phone, email = :email, updatedAt = :updatedAt WHERE id = :id")
-    suspend fun updateContact(id: Long, phone: String, email: String, updatedAt: Long)
+    @Query("UPDATE donors SET phone = :phone, email = :email WHERE id = :id")
+    suspend fun updateContact(id: Long, phone: String, email: String)
 }
