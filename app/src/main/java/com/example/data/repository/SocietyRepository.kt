@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.data.local.AuditLogDao
 import com.example.data.local.CommitteeMemberDao
 import com.example.data.local.DonationDao
+import com.example.data.local.DonorDao
 import com.example.data.local.ExpenseDao
 import com.example.data.local.MemberDao
 import com.example.data.local.MaintenanceChargeDao
@@ -14,6 +15,7 @@ import com.example.data.local.TransactionDao
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.Member
 import com.example.data.model.MaintenanceCharge
@@ -36,10 +38,12 @@ class SocietyRepository(
     private val transactionDao: TransactionDao? = null,
     private val pledgeDao: PledgeDao? = null,
     private val committeeMemberDao: CommitteeMemberDao? = null,
-    private val maintenanceChargeDao: MaintenanceChargeDao? = null
+    private val maintenanceChargeDao: MaintenanceChargeDao? = null,
+    private val donorDao: DonorDao? = null
 ) {
     val allMembers: Flow<List<Member>> = memberDao.getAllMembers()
     val allDonations: Flow<List<Donation>> = donationDao.getAllDonations()
+    val allDonors: Flow<List<Donor>> = donorDao?.observeForSociety(getSocietyInfo().name) ?: flowOf(emptyList())
     val pendingDonations: Flow<List<Donation>> = donationDao.getPendingDonations()
     val receivedDonations: Flow<List<Donation>> = donationDao.getReceivedDonations()
     val allExpenses: Flow<List<Expense>> = expenseDao.getAllExpenses()
@@ -807,26 +811,35 @@ class SocietyRepository(
             donationDao.updateDonation(withFirestore)
         }
 
-        // Register the donor in 4) All donated members
-        if (donation.donorName.isNotBlank()) {
+        // Donors are maintained in their own list. Never add a donor to Member
+        // or CommitteeMember: a donation does not grant committee membership.
+        val donors = donorDao
+        if (donors != null && donation.donorName.isNotBlank()) {
             try {
-                val existing = memberDao.getAllMembersList().find {
-                    it.name.equals(donation.donorName.trim(), ignoreCase = true) ||
-                    (donation.phone.isNotBlank() && it.phone.isNotBlank() && it.phone == donation.phone)
-                }
+                val donorName = donation.donorName.trim()
+                val donorPhone = donation.phone.trim()
+                val donorEmail = userEmail.ifBlank { donation.userEmail }.trim()
+                val existing = donors.findExisting(societyName, donorName, donorPhone)
                 if (existing == null) {
-                    val donorMember = Member(
-                        name = donation.donorName.trim(),
-                        phone = donation.phone.trim(),
-                        email = if (userEmail.isNotBlank()) userEmail else donation.userEmail.trim(),
-                        role = "Resident Member",
-                        pin = "",
-                        isSuperAdmin = false,
-                        flatNo = "Member"
+                    donors.insert(
+                        Donor(
+                            name = donorName,
+                            phone = donorPhone,
+                            email = donorEmail,
+                            societyId = societyName
+                        )
                     )
-                    insertMember(donorMember)
+                } else if (existing.phone != donorPhone || existing.email != donorEmail) {
+                    donors.updateContact(
+                        id = existing.id,
+                        phone = donorPhone.ifBlank { existing.phone },
+                        email = donorEmail.ifBlank { existing.email },
+                        updatedAt = System.currentTimeMillis()
+                    )
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("SocietyRepository", "Donation saved, but donor directory update failed: ${e.message}")
+            }
         }
 
         return localId
