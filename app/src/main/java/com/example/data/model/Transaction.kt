@@ -1,13 +1,14 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Core Financial Transaction Room Entity & Firestore Data Model.
  * Represents both income/receipts and expenditures/debits for society ledger accounting.
  */
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions", indices = [Index(value = ["committeeMemberId"])])
 data class Transaction(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
