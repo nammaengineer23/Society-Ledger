@@ -14,6 +14,7 @@ import com.example.data.local.SocietyPreferences
 import com.example.data.local.TransactionDao
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
+import com.example.data.model.CommitteeMemberAccountBalance
 import com.example.data.model.Donation
 import com.example.data.model.Donor
 import com.example.data.model.Expense
