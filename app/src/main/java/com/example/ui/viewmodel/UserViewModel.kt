@@ -138,6 +138,29 @@ class UserViewModel(
         }
     }
 
+    /** Signs in only with a Google ID token verified by Firebase Authentication. */
+    fun loginWithGoogleIdToken(
+        idToken: String,
+        onResult: ((Boolean, String) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            _successMessage.value = null
+            when (val result = userRepository.loginWithGoogleIdToken(idToken)) {
+                is AuthOpResult.Success -> {
+                    _successMessage.value = result.message
+                    onResult?.invoke(true, result.message)
+                }
+                is AuthOpResult.Error -> {
+                    _errorMessage.value = result.message
+                    onResult?.invoke(false, result.message)
+                }
+            }
+            _isLoading.value = false
+        }
+    }
+
     /**
      * Signs in with email and password.
      */
