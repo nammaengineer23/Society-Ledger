@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
         MaintenanceCharge::class,
         Donor::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class SocietyDatabase : RoomDatabase() {
@@ -113,6 +113,13 @@ abstract class SocietyDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN committeeMemberId INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_committeeMemberId ON transactions(committeeMemberId)")
+            }
+        }
+
         fun getDatabase(
             context: Context,
             scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -123,7 +130,7 @@ abstract class SocietyDatabase : RoomDatabase() {
                     SocietyDatabase::class.java,
                     "society_management_database.db"
                 )
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .addCallback(DatabaseCallback(scope))
                     .fallbackToDestructiveMigration()
                     .build()
