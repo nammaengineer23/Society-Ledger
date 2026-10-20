@@ -1168,6 +1168,120 @@ class SocietyRepository(
         return localId
     }
 
+
+    /**
+     * Record the opening advance for a newly created committee member as an immutable ledger entry.
+     * Call after the member has been saved and has a stable local ID.
+     */
+    suspend fun recordCommitteeMemberOpeningBalance(
+        member: CommitteeMember,
+        amount: Double,
+        recordedByName: String = "Admin",
+        notes: String = ""
+    ): Long {
+        require(member.id > 0L) { "Save the committee member before recording an opening balance" }
+        require(amount.isFinite() && amount >= 0.0) { "Opening amount must be finite and non-negative" }
+        val existing = transactionDao?.getMemberLedgerList(member.id).orEmpty()
+        require(existing.none { it.transactionType == CommitteeMemberAccountBalance.OPENING_BALANCE }) {
+            "An opening balance has already been recorded for this member"
+        }
+        val entry = Transaction(
+            transactionType = CommitteeMemberAccountBalance.OPENING_BALANCE,
+            committeeMemberId = member.id,
+            title = "Opening advance — ${member.name}",
+            category = "Committee Member Account",
+            amount = amount,
+            partyName = member.name,
+            partyPhone = member.phone,
+            partyEmail = member.email,
+            paymentDate = member.createdAt,
+            status = "COMPLETED",
+            notes = notes.ifBlank { "Opening balance recorded at committee member creation" },
+            recordedByName = recordedByName,
+            societyId = member.societyId
+        )
+        val id = insertTransaction(entry)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MEMBER_ACCOUNT",
+                transactionId = id,
+                transactionRef = "Member ${member.id}",
+                action = "OPENING_BALANCE_RECORDED",
+                reason = notes.ifBlank { "Opening balance recorded for committee member" },
+                performedByName = recordedByName,
+                oldValueSummary = "No opening balance",
+                newValueSummary = "₹${"%.2f".format(java.util.Locale.ROOT, amount)}",
+                societyId = member.societyId
+            )
+        )
+        return id
+    }
+
+    /**
+     * Record either a trust-to-member reimbursement or a member-to-trust return.
+     * This creates a ledger entry; it does not itself confirm a bank transfer occurred.
+     */
+    suspend fun recordCommitteeMemberSettlement(
+        member: CommitteeMember,
+        amount: Double,
+        trustPaysMember: Boolean,
+        paymentMode: String,
+        referenceNo: String = "",
+        notes: String,
+        recordedByName: String = "Admin",
+        paymentDate: Long = System.currentTimeMillis()
+    ): Long {
+        require(member.id > 0L) { "A saved committee member is required" }
+        require(amount.isFinite() && amount > 0.0) { "Settlement amount must be finite and greater than zero" }
+        require(notes.isNotBlank()) { "A settlement reason/note is required for the audit trail" }
+        val ledger = transactionDao?.getMemberLedgerList(member.id).orEmpty()
+        val balance = CommitteeMemberAccountBalance.calculate(member.id, ledger)
+        val outstanding = if (trustPaysMember) balance.amountTrustMustReimburse else balance.amountMemberMustReturn
+        require(outstanding > 0.0) {
+            if (trustPaysMember) "The trust does not currently owe this member" else "This member does not currently owe funds to the trust"
+        }
+        require(amount <= outstanding + 0.005) { "Settlement cannot exceed the outstanding amount of ₹${"%.2f".format(java.util.Locale.ROOT, outstanding)}" }
+
+        val type = if (trustPaysMember) {
+            CommitteeMemberAccountBalance.SETTLEMENT_TO_MEMBER
+        } else {
+            CommitteeMemberAccountBalance.SETTLEMENT_FROM_MEMBER
+        }
+        val direction = if (trustPaysMember) "Trust to member" else "Member to trust"
+        val entry = Transaction(
+            transactionType = type,
+            committeeMemberId = member.id,
+            title = "Settlement: $direction — ${member.name}",
+            category = "Committee Member Settlement",
+            amount = amount,
+            partyName = member.name,
+            partyPhone = member.phone,
+            partyEmail = member.email,
+            paymentMode = paymentMode,
+            paymentDate = paymentDate,
+            status = "COMPLETED",
+            referenceNo = referenceNo,
+            notes = notes,
+            recordedByName = recordedByName,
+            societyId = member.societyId
+        )
+        val id = insertTransaction(entry)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MEMBER_ACCOUNT",
+                transactionId = id,
+                transactionRef = "Member ${member.id}",
+                action = if (trustPaysMember) "SETTLEMENT_TO_MEMBER" else "SETTLEMENT_FROM_MEMBER",
+                reason = notes,
+                performedByName = recordedByName,
+                oldValueSummary = "Net amount due to trust: ₹${"%.2f".format(java.util.Locale.ROOT, balance.netAmountDueToTrust)}",
+                newValueSummary = "Settlement recorded: ₹${"%.2f".format(java.util.Locale.ROOT, amount)} ($direction)",
+                societyId = member.societyId
+            )
+        )
+        return id
+    }
+
     suspend fun updateTransaction(transaction: Transaction) {
         val societyName = getSocietyInfo().name
         transactionDao?.updateTransaction(transaction)
