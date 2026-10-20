@@ -92,19 +92,19 @@ abstract class SocietyDatabase : RoomDatabase() {
                         name TEXT NOT NULL,
                         phone TEXT NOT NULL,
                         email TEXT NOT NULL,
-                        flatOrAddress TEXT NOT NULL DEFAULT '',
+                        flatOrAddress TEXT NOT NULL,
                         societyId TEXT NOT NULL,
-                        notes TEXT NOT NULL DEFAULT '',
-                        isCustomAdded INTEGER NOT NULL DEFAULT 0,
+                        notes TEXT NOT NULL,
+                        isCustomAdded INTEGER NOT NULL,
                         createdAt INTEGER NOT NULL,
                         updatedAt INTEGER NOT NULL
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_donors_name_phone_societyId ON donors(name, phone, societyId)")
                 db.execSQL("""
-                    INSERT INTO donors (name, phone, email, societyId, createdAt, updatedAt)
-                    SELECT DISTINCT m.name, m.phone, m.email,
-                           COALESCE(cm.societyId, ''), m.createdAt, m.createdAt
+                    INSERT INTO donors (name, phone, email, flatOrAddress, societyId, notes, isCustomAdded, createdAt, updatedAt)
+                    SELECT DISTINCT m.name, m.phone, m.email, '',
+                           COALESCE(cm.societyId, ''), '', 0, m.createdAt, m.createdAt
                     FROM members m
                     LEFT JOIN committee_members cm
                       ON lower(cm.name) = lower(m.name) AND cm.role = 'Resident Member'
