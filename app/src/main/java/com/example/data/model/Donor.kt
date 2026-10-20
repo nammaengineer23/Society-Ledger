@@ -14,7 +14,8 @@ data class Donor(
     val societyId: String = "",
     val notes: String = "",
     val isCustomAdded: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 data class DonorSummary(
