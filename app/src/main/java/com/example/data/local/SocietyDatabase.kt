@@ -92,7 +92,10 @@ abstract class SocietyDatabase : RoomDatabase() {
                         name TEXT NOT NULL,
                         phone TEXT NOT NULL,
                         email TEXT NOT NULL,
+                        flatOrAddress TEXT NOT NULL DEFAULT '',
                         societyId TEXT NOT NULL,
+                        notes TEXT NOT NULL DEFAULT '',
+                        isCustomAdded INTEGER NOT NULL DEFAULT 0,
                         createdAt INTEGER NOT NULL,
                         updatedAt INTEGER NOT NULL
                     )
