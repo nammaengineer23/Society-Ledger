@@ -11,7 +11,8 @@ import androidx.room.PrimaryKey
 data class Transaction(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val transactionType: String = "INCOME", // "INCOME", "EXPENSE", "DONATION", "MAINTENANCE", "FESTIVAL", "REFUND"
+    val transactionType: String = "INCOME", // Includes MEMBER_OPENING_BALANCE, MEMBER_EXPENSE, SETTLEMENT_TO_MEMBER, SETTLEMENT_FROM_MEMBER
+    val committeeMemberId: Long = 0L, // 0 means not linked to a committee member
     val title: String, // Brief summary or purpose of transaction
     val category: String, // e.g., "Maintenance Fee", "Events & Festivals", "Utilities", "Repairs"
     val amount: Double,
@@ -48,6 +49,7 @@ data class Transaction(
         return hashMapOf(
             "localId" to id,
             "transactionType" to transactionType,
+            "committeeMemberId" to committeeMemberId,
             "title" to title,
             "category" to category,
             "amount" to amount,
@@ -151,6 +153,7 @@ data class Transaction(
             return Transaction(
                 id = (data["localId"] as? Number)?.toLong() ?: 0L,
                 transactionType = data["transactionType"] as? String ?: "INCOME",
+                committeeMemberId = (data["committeeMemberId"] as? Number)?.toLong() ?: 0L,
                 title = data["title"] as? String ?: "",
                 category = data["category"] as? String ?: "General",
                 amount = (data["amount"] as? Number)?.toDouble() ?: 0.0,
