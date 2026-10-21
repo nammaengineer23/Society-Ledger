@@ -124,13 +124,16 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
 
     // Category-wise Monthly Budget Caps
     val standardExpenseCategories = listOf(
+        "Puja & Rituals",
+        "Prasad & Annadanam",
+        "Temple Upkeep",
         "Events & Festivals",
-        "Maintenance",
         "Repairs",
         "Utilities",
         "Refreshments",
         "Admin & Legal",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Maintenance"
     )
 
     private val _categoryBudgets = MutableStateFlow(preferences.getAllCategoryBudgets(standardExpenseCategories))
