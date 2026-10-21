@@ -89,25 +89,27 @@ class SocietyRepository(
                 updatedAt = System.currentTimeMillis()
             )
             dao.update(updated)
-            syncDonorToCloud(updated)
-            return updated
+            return syncDonorToCloud(updated)
         }
         val id = dao.insert(normalized)
         if (id <= 0L) {
             val raced = dao.findExisting(societyId, normalized.name, normalized.phone)
                 ?: error("Unable to save donor")
-            syncDonorToCloud(raced)
-            return raced
+            return syncDonorToCloud(raced)
         }
         val saved = normalized.copy(id = id)
-        syncDonorToCloud(saved)
-        return saved
+        return syncDonorToCloud(saved)
     }
 
-    private suspend fun syncDonorToCloud(donor: Donor) {
-        if (!firestoreService.saveDonor(donor, societyName = donor.societyId)) {
+    private suspend fun syncDonorToCloud(donor: Donor): Donor {
+        val firestoreId = firestoreService.saveDonor(donor, societyName = donor.societyId)
+        if (firestoreId.isNullOrBlank()) {
             Log.w("SocietyRepository", "Donor saved locally; cloud sync will retry on the next manual sync")
+            return donor
         }
+        val synced = donor.copy(firestoreId = firestoreId)
+        donorDao?.update(synced)
+        return synced
     }
 
     suspend fun addMaintenanceCharge(charge: MaintenanceCharge): Long {
@@ -609,6 +611,7 @@ class SocietyRepository(
                     } else {
                         localDonorDao.update(
                             existing.copy(
+                                firestoreId = remote.firestoreId.ifBlank { existing.firestoreId },
                                 name = remote.name,
                                 phone = remote.phone.ifBlank { existing.phone },
                                 email = remote.email.ifBlank { existing.email },
@@ -622,8 +625,11 @@ class SocietyRepository(
                 }
                 // Push local-only contacts too, so offline-created donors reach other devices.
                 localDonorDao.getForSociety(currentInfo.name).forEach { local ->
-                    if (!firestoreService.saveDonor(local, societyName = currentInfo.name)) {
+                    val firestoreId = firestoreService.saveDonor(local, societyName = currentInfo.name)
+                    if (firestoreId.isNullOrBlank()) {
                         Log.w("SocietyRepository", "Donor cloud sync deferred for local record ${local.id}")
+                    } else if (local.firestoreId != firestoreId) {
+                        localDonorDao.update(local.copy(firestoreId = firestoreId))
                     }
                 }
             }
