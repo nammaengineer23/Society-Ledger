@@ -584,11 +584,16 @@ class SocietyRepository(
                         expenseDao.getExpenseByFirestoreId(remote.firestoreId)
                     } else null ?: expenseDao.getExpenseByDetails(remote.title, remote.expenseDate, remote.amount)
 
-                    if (existing != null) {
-                        expenseDao.updateExpense(remote.copy(id = existing.id, firestoreId = remote.firestoreId.ifBlank { existing.firestoreId }))
+                    val syncedExpense = if (existing != null) {
+                        remote.copy(
+                            id = existing.id,
+                            firestoreId = remote.firestoreId.ifBlank { existing.firestoreId }
+                        ).also { expenseDao.updateExpense(it) }
                     } else {
-                        expenseDao.insertExpense(remote.copy(id = 0L))
+                        val localId = expenseDao.insertExpense(remote.copy(id = 0L))
+                        remote.copy(id = localId).also { expenseDao.updateExpense(it) }
                     }
+                    syncExpenseCommitteeLedger(syncedExpense)
                 }
             }
 
