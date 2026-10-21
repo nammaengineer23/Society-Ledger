@@ -278,6 +278,45 @@ class UserAuthTest {
     }
 
     @Test
+    fun accessProfileDoesNotGrantCommitteeRoleByNamePrefix() {
+        val manager = FirebaseAuthManager.getInstance()
+        val roster = listOf(
+            Member(
+                id = 7L,
+                name = "Admin User",
+                email = "adminuser@example.com",
+                role = "Super Admin",
+                isSuperAdmin = true
+            )
+        )
+
+        val profile = manager.resolveAccessProfile("adminuser2@example.com", roster)
+
+        assertFalse(profile.isCommitteeMember)
+        assertFalse(profile.isSuperAdmin)
+        assertTrue(profile.isPublicResident)
+    }
+
+    @Test
+    fun accessProfileGrantsCommitteeRoleOnlyForExactEmailMatch() {
+        val manager = FirebaseAuthManager.getInstance()
+        val roster = listOf(
+            Member(
+                id = 7L,
+                name = "Admin User",
+                email = "adminuser@example.com",
+                role = "Super Admin",
+                isSuperAdmin = true
+            )
+        )
+
+        val profile = manager.resolveAccessProfile("ADMINUSER@example.com", roster)
+
+        assertTrue(profile.isCommitteeMember)
+        assertTrue(profile.isSuperAdmin)
+    }
+
+    @Test
     fun testLottieAuthLoadingResource_existsAndIsValidJson() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val inputStream = context.resources.openRawResource(R.raw.lottie_auth_loading)
