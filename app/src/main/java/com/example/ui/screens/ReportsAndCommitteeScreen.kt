@@ -90,11 +90,14 @@ import com.example.data.model.AppTranslations
 import com.example.data.model.Donation
 import com.example.data.model.Expense
 import com.example.data.model.Member
+import com.example.data.model.Transaction
+import com.example.data.model.CommitteeMemberAccountBalance
 import com.example.data.model.SocietyInfo
 import com.example.data.model.CommitteeAccountCalculator
 import com.example.data.model.CommitteeMemberAccount
 import com.example.ui.components.CommitteeCumulativeAccountsDialog
 import com.example.ui.components.CommitteeMemberAccountCard
+import com.example.ui.components.CommitteeMemberSettlementDialog
 import com.example.ui.components.CommunityCompactAdCard
 import com.example.ui.components.ExportHelper
 import com.example.ui.components.KeyboardAwareDialog
@@ -124,6 +127,8 @@ fun ReportsAndCommitteeScreen(
     onRestoreBackupClick: () -> Unit = {},
     donations: List<Donation>,
     expenses: List<Expense>,
+    transactions: List<Transaction> = emptyList(),
+    onRecordCommitteeSettlement: (member: Member, amount: Double, trustPaysMember: Boolean, paymentMode: String, referenceNo: String, notes: String) -> Unit = { _, _, _, _, _, _ -> },
     timePeriodFilter: String,
     onTimePeriodChange: (String) -> Unit,
     onOpenAuthDialog: () -> Unit,
@@ -161,6 +166,7 @@ fun ReportsAndCommitteeScreen(
     var showUnifiedBackupDialog by remember { mutableStateOf(false) }
     var showChangeAppPinDialog by remember { mutableStateOf(false) }
     var showCommitteeAccountsDialog by remember { mutableStateOf(false) }
+    var settlementMember by remember { mutableStateOf<Member?>(null) }
     var newAppPinInput by remember { mutableStateOf("") }
     var appPinError by remember { mutableStateOf<String?>(null) }
     val isUserLoggedInAsAdmin = isAdminMode && isSuperAdmin
@@ -898,18 +904,28 @@ fun ReportsAndCommitteeScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             memberAccounts.forEach { account ->
                                 val isCurrent = currentMember?.id == account.member.id && isAdminMode
-                                CommitteeMemberAccountCard(
-                                    account = account,
-                                    societyName = societyInfo.name,
-                                    isCurrent = isCurrent,
-                                    isAdminMode = isAdminMode,
-                                    isSuperAdmin = isUserLoggedInAsAdmin,
-                                    onFilterDonations = { memberId -> onNavigateToDonationsWithMember(memberId) },
-                                    onFilterExpenses = { memberId -> onNavigateToExpensesWithMember(memberId) },
-                                    onChangePinClick = onChangePinClick,
-                                    onEditMemberClick = onEditMemberClick,
-                                    onDeleteMemberClick = onDeleteMemberClick
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    CommitteeMemberAccountCard(
+                                        account = account,
+                                        societyName = societyInfo.name,
+                                        isCurrent = isCurrent,
+                                        isAdminMode = isAdminMode,
+                                        isSuperAdmin = isUserLoggedInAsAdmin,
+                                        onFilterDonations = { memberId -> onNavigateToDonationsWithMember(memberId) },
+                                        onFilterExpenses = { memberId -> onNavigateToExpensesWithMember(memberId) },
+                                        onChangePinClick = onChangePinClick,
+                                        onEditMemberClick = onEditMemberClick,
+                                        onDeleteMemberClick = onDeleteMemberClick
+                                    )
+                                    if (isUserLoggedInAsAdmin) {
+                                        OutlinedButton(
+                                            onClick = { settlementMember = account.member },
+                                            modifier = Modifier.fillMaxWidth().testTag("member_ledger_" + account.member.id)
+                                        ) {
+                                            Text("Opening balance & settlements")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -2003,6 +2019,17 @@ fun ReportsAndCommitteeScreen(
                 ) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    settlementMember?.let { member ->
+        CommitteeMemberSettlementDialog(
+            member = member,
+            transactions = transactions,
+            onDismiss = { settlementMember = null },
+            onSave = { amount, trustPaysMember, paymentMode, referenceNo, notes ->
+                onRecordCommitteeSettlement(member, amount, trustPaysMember, paymentMode, referenceNo, notes)
             }
         )
     }
