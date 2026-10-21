@@ -286,7 +286,10 @@ fun LoginScreen(
         onClearMessages()
         coroutineScope.launch {
             try {
-                val serverClientId = context.getString(com.example.R.string.default_web_client_id)
+                val serverClientId = com.example.BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+                require(serverClientId.isNotEmpty() && !serverClientId.startsWith("YOUR_")) {
+                    "Google sign-in is not configured. Set GOOGLE_WEB_CLIENT_ID to the Web client ID from Firebase Console."
+                }
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(serverClientId)
