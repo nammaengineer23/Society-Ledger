@@ -1,9 +1,10 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "donors")
+@Entity(tableName = "donors", indices = [Index(value = ["name", "phone", "societyId"])])
 data class Donor(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
