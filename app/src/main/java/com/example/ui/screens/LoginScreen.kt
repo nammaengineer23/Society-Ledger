@@ -111,19 +111,8 @@ import com.example.ui.theme.SocietyTealPrimary
 import com.example.ui.viewmodel.UserViewModel
 
 /**
- * Public resident authentication login options supported by the screen:
- * Google Sign-In or Email / Password credentials.
- * OTP verification is removed.
- */
-enum class AuthMethodOption {
-    GOOGLE,
-    EMAIL
-}
-
-/**
- * Integrated User Authentication screen connecting to [UserViewModel].
- * Handles Google Sign-In and Email & Password sign-in / registration.
- * Automatically ensures all users register and land in Public Resident view.
+ * Google-only authentication screen. Firebase validates the Google ID token;
+ * the authenticated identity is then checked against the configured access roster.
  */
 @Composable
 fun UserAuthScreen(
@@ -156,17 +145,6 @@ fun UserAuthScreen(
         onGoogleIdTokenSubmit = { idToken ->
             userViewModel.loginWithGoogleIdToken(idToken)
         },
-        onLoginSubmit = { email, password ->
-            userViewModel.loginWithEmail(email, password)
-        },
-        onRegisterSubmit = { name, email, phone, password ->
-            userViewModel.register(
-                email = email,
-                password = password,
-                name = name,
-                phone = phone
-            )
-        },
         onClearMessages = {
             userViewModel.clearMessages()
         },
@@ -175,10 +153,8 @@ fun UserAuthScreen(
 }
 
 /**
- * Public Authentication screen providing:
- * 1. Google Sign-In: Continue with Google, prompts for password, and on first-time account prompts for Name and unique Phone.
- * 2. Email Sign-In / Register: Email and Password with optional first-time account Name and unique Phone.
- * OTP verification is removed; no phone/email verification required.
+ * Google-only authentication. No email/password, registration, or OTP forms are shown.
+ * Authorization is handled after Firebase verifies the Google ID token.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,15 +162,10 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
     societyInfo: SocietyInfo? = null,
     availableMembers: List<Member> = emptyList(),
-    initialMethod: AuthMethodOption = AuthMethodOption.GOOGLE,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     successMessage: String? = null,
-    onLoginSubmit: (email: String, password: String) -> Unit = { _, _ -> },
     onGoogleIdTokenSubmit: (idToken: String) -> Unit = {},
-    onGoogleSignInSubmit: (email: String, displayName: String, role: String, phone: String, password: String) -> Unit = { _, _, _, _, _ -> },
-    onRegisterSubmit: (name: String, email: String, phone: String, password: String) -> Unit = { _, _, _, _ -> },
-    onResetPassword: ((email: String) -> Unit)? = null,
     onClearMessages: () -> Unit = {},
     onBack: (() -> Unit)? = null
 ) {
@@ -457,287 +428,50 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .padding(20.dp)
                     ) {
-                        AnimatedContent(
-                            targetState = selectedMethod,
-                            transitionSpec = {
-                                (fadeIn(animationSpec = tween(220)) + slideInHorizontally(animationSpec = tween(220)) { it / 8 })
-                                    .togetherWith(fadeOut(animationSpec = tween(160)) + slideOutHorizontally(animationSpec = tween(160)) { -it / 8 })
-                            },
-                            label = "auth_method_view"
-                        ) { method ->
-                            when (method) {
-                                // -------------------------------------------------------------
-                                // Google-only authentication. Firebase verifies the Google ID token.
-                                AuthMethodOption.GOOGLE -> {
-                                    Column {
-                                        Text(
-                                            text = "Sign in to Society Ledger",
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = Slate900
-                                            )
+                        Column {
+                            Text(
+                                text = "Sign in to Temple Trust Ledger",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = Slate900
+                                )
+                            )
+                            Text(
+                                text = "Use your Google account to securely access the temple trust accounts. Firebase verifies your Google ID token before access is granted.",
+                                style = MaterialTheme.typography.bodySmall.copy(color = Slate600),
+                                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.5.dp, Slate200),
+                                shadowElevation = 1.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clickable(enabled = !isLoading) { launchVerifiedGoogleSignIn() }
+                                    .testTag("google_sign_in_primary_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "G",
+                                        style = MaterialTheme.typography.titleSmall.copy(
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFF4285F4)
                                         )
-                                        Text(
-                                            text = "Use your Google account to securely access the temple trust ledger.",
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Slate600),
-                                            modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = if (isLoading) "Signing in…" else "Continue with Google",
+                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = Slate900
                                         )
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.surface,
-                                            border = BorderStroke(1.5.dp, Slate200),
-                                            shadowElevation = 1.dp,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(52.dp)
-                                                .clickable(enabled = !isLoading) { launchVerifiedGoogleSignIn() }
-                                                .testTag("google_sign_in_primary_button")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.Center
-                                            ) {
-                                                Text(
-                                                    text = "G",
-                                                    style = MaterialTheme.typography.titleSmall.copy(
-                                                        fontWeight = FontWeight.Black,
-                                                        color = Color(0xFF4285F4)
-                                                    )
-                                                )
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                Text(
-                                                    text = if (isLoading) "Signing in…" else "Continue with Google",
-                                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Slate900
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // B. EMAIL SIGN-IN & REGISTRATION FLOW (NO OTP)
-                                // -------------------------------------------------------------
-                                AuthMethodOption.EMAIL -> {
-                                    Column {
-                                        Text(
-                                            text = if (isEmailRegisterMode) "Create Resident Account" else "Email Sign In",
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                color = Slate900
-                                            )
-                                        )
-                                        Text(
-                                            text = if (isEmailRegisterMode) {
-                                                "Enter your details to create a free citizen account. No OTP verification required."
-                                            } else {
-                                                "Enter your registered email and password to enter the portal."
-                                            },
-                                            style = MaterialTheme.typography.bodySmall.copy(color = Slate600),
-                                            modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
-                                        )
-
-                                        // Toggle between Sign In and Register
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 12.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            FilterChip(
-                                                selected = !isEmailRegisterMode,
-                                                onClick = {
-                                                    isEmailRegisterMode = false
-                                                    localError = null
-                                                },
-                                                label = { Text("Sign In", fontWeight = FontWeight.SemiBold) },
-                                                modifier = Modifier.weight(1f).testTag("chip_email_login_mode")
-                                            )
-                                            FilterChip(
-                                                selected = isEmailRegisterMode,
-                                                onClick = {
-                                                    isEmailRegisterMode = true
-                                                    localError = null
-                                                },
-                                                label = { Text("Create Account", fontWeight = FontWeight.SemiBold) },
-                                                modifier = Modifier.weight(1f).testTag("chip_email_register_mode")
-                                            )
-                                        }
-
-                                        if (isEmailRegisterMode) {
-                                            // Full Name Input
-                                            OutlinedTextField(
-                                                value = emailResidentName,
-                                                onValueChange = { emailResidentName = it },
-                                                label = { Text("Full Name *") },
-                                                placeholder = { Text("e.g. Anand Kumar") },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Person, contentDescription = null, tint = SocietyTealPrimary)
-                                                },
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("email_reg_name_input"),
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = SocietyTealPrimary,
-                                                    unfocusedBorderColor = Slate200
-                                                )
-                                            )
-
-                                            Spacer(modifier = Modifier.height(10.dp))
-
-                                            // Unique 10-Digit Phone Number (Point 11)
-                                            val cleanEmailPhone = emailPhoneNumber.filter { it.isDigit() }
-                                            val isEmailPhoneDuplicate = isPhoneNumberDuplicate(cleanEmailPhone)
-                                            OutlinedTextField(
-                                                value = cleanEmailPhone,
-                                                onValueChange = { input ->
-                                                    val digits = input.filter { it.isDigit() }
-                                                    if (digits.length <= 10) emailPhoneNumber = digits
-                                                },
-                                                label = { Text("10-Digit Mobile Phone *") },
-                                                placeholder = { Text("9876543210") },
-                                                prefix = { Text("+91 ") },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Phone, contentDescription = null, tint = SocietyTealPrimary)
-                                                },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                                isError = isEmailPhoneDuplicate,
-                                                supportingText = {
-                                                    if (isEmailPhoneDuplicate) {
-                                                        Text("Phone number is already registered in backend! Please use a unique number.", color = MaterialTheme.colorScheme.error)
-                                                    } else {
-                                                        Text("Must be unique from previous numbers in backend")
-                                                    }
-                                                },
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(12.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("email_reg_phone_input"),
-                                                colors = OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = SocietyTealPrimary,
-                                                    unfocusedBorderColor = Slate200
-                                                )
-                                            )
-
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                        }
-
-                                        // Email Input
-                                        OutlinedTextField(
-                                            value = emailInput,
-                                            onValueChange = { emailInput = it },
-                                            label = { Text("Email Address *") },
-                                            placeholder = { Text("resident@society.org") },
-                                            leadingIcon = {
-                                                Icon(Icons.Default.Email, contentDescription = null, tint = SocietyTealPrimary)
-                                            },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("email_address_input"),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = SocietyTealPrimary,
-                                                unfocusedBorderColor = Slate200
-                                            )
-                                        )
-
-                                        Spacer(modifier = Modifier.height(10.dp))
-
-                                        // Password Input
-                                        OutlinedTextField(
-                                            value = emailPassword,
-                                            onValueChange = { emailPassword = it },
-                                            label = { Text("Password *") },
-                                            placeholder = { Text("Enter password (min 6 characters)") },
-                                            leadingIcon = {
-                                                Icon(Icons.Default.Lock, contentDescription = null, tint = SocietyTealPrimary)
-                                            },
-                                            trailingIcon = {
-                                                IconButton(onClick = { isEmailPasswordVisible = !isEmailPasswordVisible }) {
-                                                    Icon(
-                                                        imageVector = if (isEmailPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                        contentDescription = "Toggle password"
-                                                    )
-                                                }
-                                            },
-                                            visualTransformation = if (isEmailPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .testTag("email_password_input"),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = SocietyTealPrimary,
-                                                unfocusedBorderColor = Slate200
-                                            )
-                                        )
-
-                                        Spacer(modifier = Modifier.height(16.dp))
-
-                                        // Action Button: Sign In or Create Account
-                                        Button(
-                                            onClick = {
-                                                val trimmedEmail = emailInput.trim()
-                                                val trimmedPwd = emailPassword.trim()
-                                                val trimmedPhone = emailPhoneNumber.trim()
-                                                val trimmedName = emailResidentName.trim()
-
-                                                if (trimmedEmail.isBlank()) {
-                                                    localError = "Please enter your email address."
-                                                } else if (trimmedPwd.length < 6) {
-                                                    localError = "Password must be at least 6 characters long."
-                                                } else if (isEmailRegisterMode) {
-                                                    if (trimmedName.isBlank()) {
-                                                        localError = "Please enter your full name."
-                                                    } else if (trimmedPhone.length != 10) {
-                                                        localError = "Please enter a valid 10-digit mobile phone number."
-                                                    } else if (isPhoneNumberDuplicate(trimmedPhone)) {
-                                                        localError = "This phone number is already registered in the backend. Please use a unique number."
-                                                    } else {
-                                                        localError = null
-                                                        onClearMessages()
-                                                        onRegisterSubmit(trimmedName, trimmedEmail, trimmedPhone, trimmedPwd)
-                                                    }
-                                                } else {
-                                                    localError = null
-                                                    onClearMessages()
-                                                    onLoginSubmit(trimmedEmail, trimmedPwd)
-                                                }
-                                            },
-                                            enabled = !isLoading,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(50.dp)
-                                                .testTag("email_submit_button"),
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = SocietyTealPrimary)
-                                        ) {
-                                            if (isLoading) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    AuthButtonLottieLoader(size = 22.dp, tint = Color.White)
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(if (isEmailRegisterMode) "Creating account..." else "Signing in...", fontWeight = FontWeight.Bold)
-                                                }
-                                            } else {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        if (isEmailRegisterMode) "Create Account & Sign In" else "Sign In",
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -815,7 +549,7 @@ fun LoginScreen(
                         // Animated Loading Feedback
                         AuthLoadingFeedbackBanner(
                             visible = isLoading,
-                            isRegister = isEmailRegisterMode
+                            isRegister = false
                         )
                     }
                 }
@@ -842,7 +576,7 @@ fun LoginScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Mandatory Sign-In: Continue with Google or Email credentials to view society accounts.",
+                            text = "Secure sign-in: Firebase verifies your Google account before temple trust access is granted.",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = Slate600,
                                 fontWeight = FontWeight.Medium
