@@ -448,7 +448,7 @@ fun AddEditExpenseDialog(
                 ) {
                     val selectedPayer = committeeMembers.firstOrNull { it.id == paidByCommitteeMemberId }
                     OutlinedTextField(
-                        value = selectedPayer?.let { "${it.name} — ${it.role}" } ?: "Trust funds",
+                        value = if (paidByCommitteeMemberId == 0L) "Trust funds" else selectedPayer?.let { "${it.name} — ${it.role}" } ?: "Committee member #$paidByCommitteeMemberId (unavailable)",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Funding source") },
