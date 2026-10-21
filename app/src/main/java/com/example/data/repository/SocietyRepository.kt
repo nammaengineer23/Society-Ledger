@@ -732,16 +732,28 @@ class SocietyRepository(
         } catch (_: Exception) {}
     }
 
-    suspend fun insertMember(member: Member): Long {
+    suspend fun insertMember(
+        member: Member,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
+    ): Long {
+        require(openingBalance.isFinite() && openingBalance >= 0.0) {
+            "Opening balance must be finite and non-negative"
+        }
         val societyName = getSocietyInfo().name
         val id = memberDao.insertMember(member)
         val saved = member.copy(id = id)
         firestoreService.saveMember(saved, societyName = societyName)
-        try {
-            val cm = CommitteeMember.fromMember(saved).copy(societyId = societyName)
-            committeeMemberDao?.insertCommitteeMember(cm)
-            firestoreService.saveCommitteeMember(cm, societyName = societyName)
-        } catch (_: Exception) {}
+        val committeeMember = CommitteeMember.fromMember(saved).copy(
+            id = id,
+            societyId = societyName
+        )
+        // Keep the committee account keyed to the same member ID used by the member directory.
+        insertCommitteeMember(
+            member = committeeMember,
+            openingBalance = openingBalance,
+            openingBalanceNotes = openingBalanceNotes
+        )
         return id
     }
 
