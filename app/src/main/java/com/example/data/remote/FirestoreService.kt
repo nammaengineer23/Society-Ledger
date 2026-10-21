@@ -318,6 +318,7 @@ class FirestoreService {
                 "paidTo" to expense.paidTo,
                 "paymentMode" to expense.paymentMode,
                 "receiptUrl" to expense.receiptUrl,
+                "paidByCommitteeMemberId" to expense.paidByCommitteeMemberId,
                 "recordedById" to expense.recordedById,
                 "recordedByName" to expense.recordedByName,
                 "userId" to if (expense.userId.isNotBlank()) expense.userId else firebaseUid,
