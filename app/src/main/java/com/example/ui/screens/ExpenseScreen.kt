@@ -134,18 +134,21 @@ fun ExpenseScreen(
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()) }
 
     val categories = listOf(
+        "Puja & Rituals",
+        "Prasad & Annadanam",
+        "Temple Upkeep",
         "Events & Festivals",
-        "Maintenance",
         "Repairs",
         "Utilities",
         "Refreshments",
         "Admin & Legal",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Maintenance"
     )
 
     // Form Field States
     var description by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(categories[1]) } // Default to Maintenance
+    var category by remember { mutableStateOf(categories.firstOrNull { it == "Puja & Rituals" } ?: categories.first()) } // Temple trust default
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
     var amountText by remember { mutableStateOf("") }
     var expenseDate by remember { mutableStateOf(System.currentTimeMillis()) }
