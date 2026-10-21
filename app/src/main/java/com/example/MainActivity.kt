@@ -796,6 +796,32 @@ fun SocietyMainApp(
                         onRestoreBackupClick = { showRestoreBackupDialog = true },
                         donations = allDonations,
                         expenses = allExpenses,
+                        transactions = allTransactions,
+                        onRecordCommitteeSettlement = { member, amount, trustPaysMember, paymentMode, referenceNo, notes ->
+                            if (isAdminMode && isSuperAdmin) {
+                                viewModel.recordCommitteeMemberSettlement(
+                                    member = member,
+                                    amount = amount,
+                                    trustPaysMember = trustPaysMember,
+                                    paymentMode = paymentMode,
+                                    referenceNo = referenceNo,
+                                    notes = notes
+                                ) { result ->
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            result.fold(
+                                                onSuccess = { "Settlement recorded in committee ledger." },
+                                                onFailure = { "Settlement failed: ${it.message ?: "please check the outstanding balance"}" }
+                                            )
+                                        )
+                                    }
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Only an authorized administrator can record settlements.")
+                                }
+                            }
+                        },
                         timePeriodFilter = donationTimePeriod,
                         onTimePeriodChange = viewModel::setDonationTimePeriod,
                         onOpenAuthDialog = { showAuthMemberDialog = true },
