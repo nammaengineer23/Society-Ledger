@@ -3,10 +3,12 @@ package com.example
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.DonationDao
+import com.example.data.local.DonorDao
 import com.example.data.local.ExpenseDao
 import com.example.data.local.PledgeDao
 import com.example.data.local.SocietyDatabase
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.Pledge
 import kotlinx.coroutines.flow.first
@@ -27,6 +29,7 @@ class RoomDatabaseIntegrationTest {
 
     private lateinit var database: SocietyDatabase
     private lateinit var donationDao: DonationDao
+    private lateinit var donorDao: DonorDao
     private lateinit var expenseDao: ExpenseDao
     private lateinit var pledgeDao: PledgeDao
 
@@ -35,6 +38,7 @@ class RoomDatabaseIntegrationTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database = SocietyDatabase.getInMemoryDatabase(context)
         donationDao = database.donationDao()
+        donorDao = database.donorDao()
         expenseDao = database.expenseDao()
         pledgeDao = database.pledgeDao()
     }
@@ -75,6 +79,49 @@ class RoomDatabaseIntegrationTest {
 
         donationDao.deleteDonationById(1L)
         assertNull(donationDao.getDonationById(1L))
+    }
+
+    @Test
+    fun donorDirectoryMatchesNameOrPhoneOnlyWithinItsSociety() = runBlocking {
+        val firstId = donorDao.insert(
+            Donor(name = "Ananya Rao", phone = "9876543210", societyId = "Temple A")
+        )
+        val otherSocietyId = donorDao.insert(
+            Donor(name = "Ananya Rao", phone = "9876543210", societyId = "Temple B")
+        )
+        assertEquals(1L, firstId)
+        assertEquals(2L, otherSocietyId)
+
+        val sameNameDifferentCase = donorDao.findExisting(
+            societyId = "Temple A",
+            name = "ananya rao",
+            phone = "9000000000"
+        )
+        assertEquals(firstId, sameNameDifferentCase?.id)
+
+        val samePhoneDifferentName = donorDao.findExisting(
+            societyId = "Temple A",
+            name = "Another Name",
+            phone = "9876543210"
+        )
+        assertEquals(firstId, samePhoneDifferentName?.id)
+
+        val otherSocietyMatch = donorDao.findExisting(
+            societyId = "Temple B",
+            name = "ANANYA RAO",
+            phone = "9876543210"
+        )
+        assertEquals(otherSocietyId, otherSocietyMatch?.id)
+
+        assertEquals(1, donorDao.getForSociety("Temple A").size)
+        assertEquals(1, donorDao.getForSociety("Temple B").size)
+        assertNull(
+            donorDao.findExisting(
+                societyId = "Temple C",
+                name = "Ananya Rao",
+                phone = "9876543210"
+            )
+        )
     }
 
     @Test
