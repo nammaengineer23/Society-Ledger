@@ -1336,9 +1336,10 @@ fun SocietyMainApp(
             currentMember = activeMember,
             categoryBudgets = categoryBudgets,
             existingExpensesForCategory = existingExpensesForCat,
-            onSave = { title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, modificationReason ->
+            committeeMembers = members,
+            onSave = { title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, modificationReason, paidByCommitteeMemberId ->
                 if (target == null) {
-                    viewModel.addExpense(title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl)
+                    viewModel.addExpense(title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, paidByCommitteeMemberId = paidByCommitteeMemberId)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Expense of ₹${amount.toInt()} recorded!")
                     }
@@ -1350,7 +1351,8 @@ fun SocietyMainApp(
                         expenseDate = expenseDate,
                         paidTo = paidTo,
                         paymentMode = paymentMode,
-                        receiptUrl = receiptUrl
+                        receiptUrl = receiptUrl,
+                        paidByCommitteeMemberId = paidByCommitteeMemberId
                     )
                     if (modificationReason.isNotBlank() && isSuperAdmin) {
                         viewModel.superAdminModifyExpense(target, updated, modificationReason) { success, msg ->
