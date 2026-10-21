@@ -703,7 +703,13 @@ fun SocietyMainApp(
                         onSearchQueryChange = viewModel::setDonorSearchQuery,
                         filterType = donorFilterType,
                         onFilterTypeChange = viewModel::setDonorFilterType,
-                        onAddCustomDonor = viewModel::addCustomDonor,
+                        onAddCustomDonor = { name, phone, email, flat, notes ->
+                            viewModel.addCustomDonor(name, phone, email, flat, notes) { message ->
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        },
                         isProSubscriber = true,
                         onNavigateBack = { currentScreen = AppScreen.DONATIONS }
                     )
