@@ -1035,6 +1035,35 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun recordCommitteeMemberSettlement(
+        member: Member,
+        amount: Double,
+        trustPaysMember: Boolean,
+        paymentMode: String,
+        referenceNo: String,
+        notes: String,
+        onResult: (Result<Long>) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val committeeMember = CommitteeMember.fromMember(member).copy(
+                    id = member.id,
+                    societyId = repository.getSocietyInfo().name
+                )
+                repository.recordCommitteeMemberSettlement(
+                    member = committeeMember,
+                    amount = amount,
+                    trustPaysMember = trustPaysMember,
+                    paymentMode = paymentMode,
+                    referenceNo = referenceNo,
+                    notes = notes,
+                    recordedByName = _currentMember.value?.name ?: "Admin"
+                )
+            }
+            onResult(result)
+        }
+    }
+
     // CRUD for Expenses
     fun addExpense(
         title: String,
