@@ -596,10 +596,11 @@ class UserRepository(
         user
     }
 
-    private fun isSuperAdminEmail(email: String): Boolean {
-        val lower = email.lowercase().trim()
-        return lower.isNotBlank() && lower.startsWith("admin@")
-    }
+    /**
+     * Super-admin access must be assigned explicitly to a roster member.
+     * An email prefix such as "admin@" is not proof of authorization.
+     */
+    private fun isSuperAdminEmail(email: String): Boolean = false
 
     private fun String.capitalizeWords(): String {
         return split(" ").joinToString(" ") { word ->
