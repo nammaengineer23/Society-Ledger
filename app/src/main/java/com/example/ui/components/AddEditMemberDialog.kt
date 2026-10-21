@@ -79,6 +79,9 @@ fun AddEditMemberDialog(
     var role by remember { mutableStateOf(existingMember?.role ?: "Committee Member") }
     var pin by remember { mutableStateOf(existingMember?.pin ?: "") }
     var isSuperAdmin by remember { mutableStateOf(existingMember?.isSuperAdmin ?: false) }
+    var openingBalance by remember { mutableStateOf("0") }
+    var openingBalanceNotes by remember { mutableStateOf("") }
+    var openingBalanceError by remember { mutableStateOf(false) }
     var showPin by remember { mutableStateOf(false) }
 
     var nameError by remember { mutableStateOf(false) }
