@@ -92,19 +92,29 @@ class RoomDatabaseIntegrationTest {
         assertEquals(1L, firstId)
         assertEquals(2L, otherSocietyId)
 
-        val sameNameDifferentCase = donorDao.findExisting(
+        // A different phone number is a different donor even when the name matches.
+        val sameNameDifferentPhone = donorDao.findExisting(
             societyId = "Temple A",
             name = "ananya rao",
             phone = "9000000000"
         )
-        assertEquals(firstId, sameNameDifferentCase?.id)
+        assertNull(sameNameDifferentPhone)
 
+        // Phone is the primary identity when present, even if the entered name differs.
         val samePhoneDifferentName = donorDao.findExisting(
             societyId = "Temple A",
             name = "Another Name",
             phone = "9876543210"
         )
         assertEquals(firstId, samePhoneDifferentName?.id)
+
+        // Name fallback is used only when the incoming contact has no phone.
+        val sameNameWithoutPhone = donorDao.findExisting(
+            societyId = "Temple A",
+            name = "ananya rao",
+            phone = ""
+        )
+        assertEquals(firstId, sameNameWithoutPhone?.id)
 
         val otherSocietyMatch = donorDao.findExisting(
             societyId = "Temple B",
