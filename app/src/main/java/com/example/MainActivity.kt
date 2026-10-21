@@ -312,6 +312,7 @@ fun SocietyMainApp(
     // Audit Log & Statutory Compliance State
     val auditLogs by viewModel.filteredAuditLogs.collectAsState()
     val auditedTransactions by viewModel.auditedTransactions.collectAsState()
+    val allTransactions by viewModel.allTransactions.collectAsState()
     val auditSearchQuery by viewModel.auditSearchQuery.collectAsState()
     val auditActionFilter by viewModel.auditActionFilter.collectAsState()
     val auditTypeFilter by viewModel.auditTypeFilter.collectAsState()
