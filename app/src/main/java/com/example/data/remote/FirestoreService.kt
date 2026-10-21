@@ -665,9 +665,9 @@ class FirestoreService {
     }
 
     /** Saves donor contact details independently from donation and committee records. */
-    suspend fun saveDonor(donor: Donor, societyName: String = ""): Boolean {
-        val db = firestore ?: return false
-        if (donor.name.isBlank()) return false
+    suspend fun saveDonor(donor: Donor, societyName: String = ""): String? {
+        val db = firestore ?: return null
+        if (donor.name.isBlank()) return null
         return try {
             ensureAuthenticated()
             val socDocId = resolveSocietyDocId(societyName.ifBlank { donor.societyId })
@@ -675,10 +675,14 @@ class FirestoreService {
             val phoneKey = donor.phone.filter { it.isDigit() }.takeLast(10)
             val nameKey = donor.name.trim().lowercase()
                 .replace(Regex("[^a-z0-9]+"), "_").trim('_').take(48)
-            val stableKey = phoneKey.ifBlank { nameKey.ifBlank { "unknown" } }
+            // Keep the document ID after first sync so contact edits update the same record.
+            val documentId = donor.firestoreId.ifBlank {
+                val stableKey = phoneKey.ifBlank { nameKey.ifBlank { "unknown" } }
+                "donor_$stableKey"
+            }
             val donorData = hashMapOf<String, Any?>(
                 "name" to donor.name.trim(),
-                "phone" to donor.phone.filter { it.isDigit() }.takeLast(10),
+                "phone" to phoneKey,
                 "email" to donor.email.trim(),
                 "flatOrAddress" to donor.flatOrAddress.trim(),
                 "societyId" to socDocId,
@@ -689,12 +693,12 @@ class FirestoreService {
                 "updatedAt" to System.currentTimeMillis()
             )
             db.collection(COLLECTION_SOCIETIES).document(socDocId)
-                .collection(COLLECTION_DONORS).document("donor_$stableKey")
+                .collection(COLLECTION_DONORS).document(documentId)
                 .set(donorData, SetOptions.merge()).await()
-            true
+            documentId
         } catch (e: Exception) {
             handleFirestoreError("Saving donor directory entry", e)
-            false
+            null
         }
     }
 
@@ -709,6 +713,7 @@ class FirestoreService {
                 if (name.isBlank()) return@mapNotNull null
                 Donor(
                     id = doc.getLong("localId") ?: 0L,
+                    firestoreId = doc.id,
                     name = name,
                     phone = doc.getString("phone").orEmpty(),
                     email = doc.getString("email").orEmpty(),
