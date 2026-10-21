@@ -169,84 +169,9 @@ fun LoginScreen(
     onClearMessages: () -> Unit = {},
     onBack: (() -> Unit)? = null
 ) {
-    var selectedMethod by remember { mutableStateOf(AuthMethodOption.GOOGLE) }
-
-    // Google Sign-In State
-    var googleAccountEmail by remember { mutableStateOf("") }
-    var googleAccountName by remember { mutableStateOf("") }
-    var googleAccountPhone by remember { mutableStateOf("") }
-    var googleAccountPassword by remember { mutableStateOf("") }
-    var isGoogleAccountSelected by remember { mutableStateOf(false) }
-    var isGooglePasswordVisible by remember { mutableStateOf(false) }
-
-    // Email Sign-In / Register State
-    var isEmailRegisterMode by remember { mutableStateOf(false) }
-    var emailInput by remember { mutableStateOf("") }
-    var emailPassword by remember { mutableStateOf("") }
-    var emailResidentName by remember { mutableStateOf("") }
-    var emailPhoneNumber by remember { mutableStateOf("") }
-    var isEmailPasswordVisible by remember { mutableStateOf(false) }
-
-    // Feedback & UI State
+    // Local UI feedback; authentication is handled only by verified Google ID tokens.
     var localError by remember { mutableStateOf<String?>(null) }
-    val focusManager = LocalFocusManager.current
     val displayedError = errorMessage ?: localError
-
-    // Helper to check for duplicate phone number in backend
-    fun isPhoneNumberDuplicate(rawPhone: String): Boolean {
-        val clean = rawPhone.filter { it.isDigit() }.takeLast(10)
-        if (clean.length < 10) return false
-        return availableMembers.any { member ->
-            val memberClean = member.phone.filter { it.isDigit() }.takeLast(10)
-            memberClean.isNotBlank() && memberClean == clean
-        }
-    }
-
-    // Launcher for device account picker (lists Google accounts on the phone)
-    val accountPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val selectedEmail = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
-            if (!selectedEmail.isNullOrBlank()) {
-                googleAccountEmail = selectedEmail
-                val displayName = selectedEmail.substringBefore("@")
-                    .replace(".", " ")
-                    .replace("_", " ")
-                    .split(" ")
-                    .joinToString(" ") { word ->
-                        word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                    }
-                googleAccountName = displayName
-                isGoogleAccountSelected = true
-                localError = null
-                onClearMessages()
-            }
-        }
-    }
-
-    fun launchGoogleAccountChooser() {
-        localError = null
-        onClearMessages()
-        try {
-            val intent = AccountManager.newChooseAccountIntent(
-                null,
-                null,
-                arrayOf("com.google"),
-                null,
-                null,
-                null,
-                null
-            )
-            accountPickerLauncher.launch(intent)
-        } catch (e: Exception) {
-            // If device cannot open account picker, fallback gracefully to manual entry
-            isGoogleAccountSelected = true
-            if (googleAccountEmail.isBlank()) {
-                localError = "Please enter your Google account email and password below."
-            }
-        }
-    }
 
     val context = LocalContext.current
     val activity = context as? Activity
