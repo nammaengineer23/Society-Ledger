@@ -1482,9 +1482,9 @@ fun SocietyMainApp(
         val target = editingMember
         AddEditMemberDialog(
             existingMember = target,
-            onSave = { name, email, phone, role, pin, isSuperAdminRole ->
+            onSave = { name, email, phone, role, pin, isSuperAdminRole, openingBalance, openingBalanceNotes ->
                 if (target == null) {
-                    viewModel.addMember(name, email, phone, role, pin, isSuperAdminRole)
+                    viewModel.addMember(name, email, phone, role, pin, isSuperAdminRole, openingBalance, openingBalanceNotes)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Member '$name' added successfully!")
                     }
