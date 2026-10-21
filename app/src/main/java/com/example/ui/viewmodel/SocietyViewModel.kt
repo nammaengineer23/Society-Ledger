@@ -910,11 +910,26 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     fun setDonorSearchQuery(query: String) { _donorSearchQuery.value = query }
     fun setDonorFilterType(filter: String) { _donorFilterType.value = filter }
 
-    fun addCustomDonor(name: String, phone: String, email: String, flatOrAddress: String, notes: String) {
-        val cleanPhone = phone.trim().filter { it.isDigit() }.takeLast(10)
-        if (name.isBlank() || cleanPhone.length != 10) return
+    fun addCustomDonor(
+        name: String,
+        phone: String,
+        email: String,
+        flatOrAddress: String,
+        notes: String,
+        onResult: (String) -> Unit = {}
+    ) {
+        val cleanName = name.trim()
+        val cleanPhone = phone.filter { it.isDigit() }
+        if (cleanName.isBlank()) {
+            onResult("Donor name is required.")
+            return
+        }
+        if (cleanPhone.length != 10) {
+            onResult("Enter a valid 10-digit donor phone number.")
+            return
+        }
         val donor = com.example.data.model.Donor(
-            name = name.trim(),
+            name = cleanName,
             phone = cleanPhone,
             email = email.trim(),
             flatOrAddress = flatOrAddress.trim(),
@@ -924,8 +939,13 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         )
         viewModelScope.launch {
             runCatching { repository.addCustomDonor(donor) }
+                .onSuccess { saved ->
+                    onResult("Donor '" + saved.name + "' saved successfully.")
+                }
                 .onFailure { error ->
                     android.util.Log.e("SocietyViewModel", "Unable to save donor", error)
+                    onResult(error.message?.takeIf { it.isNotBlank() }
+                        ?: "Unable to save donor. Please try again.")
                 }
         }
     }
