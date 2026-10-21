@@ -107,13 +107,16 @@ fun AddEditExpenseDialog(
     onDismiss: () -> Unit
 ) {
     val standardCategories = listOf(
+        "Puja & Rituals",
+        "Prasad & Annadanam",
+        "Temple Upkeep",
         "Events & Festivals",
-        "Maintenance",
         "Repairs",
         "Utilities",
         "Refreshments",
         "Admin & Legal",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Maintenance"
     )
 
     val existingCat = existingExpense?.category ?: standardCategories[0]
