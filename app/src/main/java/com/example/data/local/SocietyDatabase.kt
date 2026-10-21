@@ -110,9 +110,8 @@ abstract class SocietyDatabase : RoomDatabase() {
                       ON lower(cm.name) = lower(m.name) AND cm.role = 'Resident Member'
                     WHERE m.role = 'Resident Member' AND trim(m.name) != ''
                 """.trimIndent())
-                // These rows were created by the old donation flow, not by committee management.
-                db.execSQL("DELETE FROM committee_members WHERE role = 'Resident Member'")
-                db.execSQL("DELETE FROM members WHERE role = 'Resident Member'")
+                // Keep legacy member rows intact. Donor records are copied above for
+                // compatibility; deleting source rows during an upgrade would destroy user data.
             }
         }
 
