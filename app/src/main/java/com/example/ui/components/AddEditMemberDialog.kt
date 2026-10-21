@@ -68,7 +68,7 @@ import com.example.ui.theme.SocietyTealPrimary
 @Composable
 fun AddEditMemberDialog(
     existingMember: Member? = null,
-    onSave: (name: String, email: String, phone: String, role: String, pin: String, isSuperAdmin: Boolean) -> Unit,
+    onSave: (name: String, email: String, phone: String, role: String, pin: String, isSuperAdmin: Boolean, openingBalance: Double, openingBalanceNotes: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isEdit = existingMember != null
