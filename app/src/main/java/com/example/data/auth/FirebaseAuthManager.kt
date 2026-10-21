@@ -300,8 +300,9 @@ class FirebaseAuthManager private constructor() {
         }
 
         // Match against committee roster by email
-        val matchedMember = members.find { it.email.equals(email, ignoreCase = true) }
-            ?: members.find { email.contains(it.name.split(" ").firstOrNull()?.lowercase() ?: "___") }
+        // Authorization is based on an exact, verified email-to-roster match only.
+        // Name-prefix matching can accidentally grant committee privileges to unrelated accounts.
+        val matchedMember = members.find { it.email.isNotBlank() && it.email.equals(email, ignoreCase = true) }
 
         if (matchedMember == null) {
             return CommitteeAccessProfile(
