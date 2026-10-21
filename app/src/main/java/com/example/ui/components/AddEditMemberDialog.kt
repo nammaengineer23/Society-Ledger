@@ -432,6 +432,11 @@ fun AddEditMemberDialog(
                                 pinError = true
                                 valid = false
                             }
+                            val openingAmount = openingBalance.toDoubleOrNull() ?: 0.0
+                            if (!isEdit && (!openingAmount.isFinite() || openingAmount < 0.0)) {
+                                openingBalanceError = true
+                                valid = false
+                            }
 
                             if (valid) {
                                 onSave(
@@ -440,7 +445,9 @@ fun AddEditMemberDialog(
                                     phone.trim(),
                                     role.trim(),
                                     pin.trim(),
-                                    isSuperAdmin
+                                    isSuperAdmin,
+                                    if (isEdit) 0.0 else openingAmount,
+                                    openingBalanceNotes.trim()
                                 )
                             }
                         },
