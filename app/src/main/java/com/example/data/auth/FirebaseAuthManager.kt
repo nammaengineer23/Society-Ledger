@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -98,6 +99,34 @@ class FirebaseAuthManager private constructor() {
 
     val isUserSignedIn: Boolean
         get() = currentUser != null
+
+    /**
+     * Exchanges a Google ID token for a Firebase session. Never trust a supplied
+     * email/name alone: Firebase validates the token with Google before creating a session.
+     */
+    suspend fun signInWithGoogleIdToken(idToken: String): AuthOpResult<FirebaseUser> {
+        if (idToken.isBlank()) return AuthOpResult.Error("Google sign-in did not return an ID token.")
+        val authInstance = auth
+            ?: return AuthOpResult.Error("Firebase Authentication is unavailable.", rawCode = "FIREBASE_UNAVAILABLE")
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        return suspendCancellableCoroutine { continuation ->
+            authInstance.signInWithCredential(credential).addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = task.result?.user
+                    if (user != null) {
+                        _currentUserState.value = user
+                        continuation.resume(AuthOpResult.Success(user, "Google ID token verified by Firebase."))
+                    } else {
+                        continuation.resume(AuthOpResult.Error("Firebase sign-in returned no user."))
+                    }
+                } else {
+                    val exception = task.exception
+                    Log.e(TAG, "Google ID-token Firebase sign-in failed: ${exception?.message}", exception)
+                    continuation.resume(AuthOpResult.Error(formatAuthException(exception), rawCode = "GOOGLE_TOKEN_REJECTED"))
+                }
+            }
+        }
+    }
 
     /**
      * Signs in with email and password via Firebase Authentication.
@@ -271,8 +300,9 @@ class FirebaseAuthManager private constructor() {
         }
 
         // Match against committee roster by email
-        val matchedMember = members.find { it.email.equals(email, ignoreCase = true) }
-            ?: members.find { email.contains(it.name.split(" ").firstOrNull()?.lowercase() ?: "___") }
+        // Authorization is based on an exact, verified email-to-roster match only.
+        // Name-prefix matching can accidentally grant committee privileges to unrelated accounts.
+        val matchedMember = members.find { it.email.isNotBlank() && it.email.equals(email, ignoreCase = true) }
 
         if (matchedMember == null) {
             return CommitteeAccessProfile(

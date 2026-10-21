@@ -20,6 +20,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE isDeleted = 0 ORDER BY paymentDate DESC")
     suspend fun getAllTransactionsList(): List<Transaction>
 
+    @Query("SELECT * FROM transactions WHERE committeeMemberId = :memberId AND isDeleted = 0 ORDER BY paymentDate ASC, id ASC")
+    fun getMemberLedger(memberId: Long): Flow<List<Transaction>>
+
+    @Query("SELECT * FROM transactions WHERE committeeMemberId = :memberId AND isDeleted = 0 ORDER BY paymentDate ASC, id ASC")
+    suspend fun getMemberLedgerList(memberId: Long): List<Transaction>
+
     @Query("SELECT * FROM transactions WHERE transactionType = :type AND isDeleted = 0 ORDER BY paymentDate DESC")
     fun getTransactionsByType(type: String): Flow<List<Transaction>>
 

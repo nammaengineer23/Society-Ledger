@@ -4,17 +4,22 @@ import android.util.Log
 import com.example.data.local.AuditLogDao
 import com.example.data.local.CommitteeMemberDao
 import com.example.data.local.DonationDao
+import com.example.data.local.DonorDao
 import com.example.data.local.ExpenseDao
 import com.example.data.local.MemberDao
+import com.example.data.local.MaintenanceChargeDao
 import com.example.data.local.PledgeDao
 import com.example.data.local.PreloadedData
 import com.example.data.local.SocietyPreferences
 import com.example.data.local.TransactionDao
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
+import com.example.data.model.CommitteeMemberAccountBalance
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.Member
+import com.example.data.model.MaintenanceCharge
 import com.example.data.model.Pledge
 import com.example.data.model.Society
 import com.example.data.model.SocietyInfo
@@ -33,19 +38,155 @@ class SocietyRepository(
     private val firestoreService: FirestoreService = FirestoreService(),
     private val transactionDao: TransactionDao? = null,
     private val pledgeDao: PledgeDao? = null,
-    private val committeeMemberDao: CommitteeMemberDao? = null
+    private val committeeMemberDao: CommitteeMemberDao? = null,
+    private val maintenanceChargeDao: MaintenanceChargeDao? = null,
+    private val donorDao: DonorDao? = null
 ) {
     val allMembers: Flow<List<Member>> = memberDao.getAllMembers()
     val allDonations: Flow<List<Donation>> = donationDao.getAllDonations()
+    val allDonors: Flow<List<Donor>> = donorDao?.observeForSociety(getSocietyInfo().name) ?: flowOf(emptyList())
     val pendingDonations: Flow<List<Donation>> = donationDao.getPendingDonations()
     val receivedDonations: Flow<List<Donation>> = donationDao.getReceivedDonations()
     val allExpenses: Flow<List<Expense>> = expenseDao.getAllExpenses()
+    val allMaintenanceCharges: Flow<List<MaintenanceCharge>> = maintenanceChargeDao?.observeAll() ?: flowOf(emptyList())
     val allAuditLogs: Flow<List<AuditLog>> = auditLogDao?.getAllAuditLogs() ?: flowOf(emptyList())
 
     val allTransactions: Flow<List<Transaction>> = transactionDao?.getAllTransactions() ?: flowOf(emptyList())
     val allPledges: Flow<List<Pledge>> = pledgeDao?.getAllPledges() ?: flowOf(emptyList())
     val pendingPledgesList: Flow<List<Pledge>> = pledgeDao?.getPendingPledges() ?: flowOf(emptyList())
     val allCommitteeMembers: Flow<List<CommitteeMember>> = committeeMemberDao?.getAllCommitteeMembers() ?: flowOf(emptyList())
+
+    /**
+     * Records a maintenance assessment. This is a ledger entry only; it never
+     * starts or collects an online payment.
+     */
+    suspend fun addCustomDonor(donor: Donor): Donor {
+        val dao = donorDao ?: error("Donor directory is not configured")
+        require(donor.name.isNotBlank()) { "Donor name is required" }
+        val digits = donor.phone.filter { it.isDigit() }
+        require(digits.length == 10) { "Enter a valid 10-digit phone number" }
+        val societyId = getSocietyInfo().name
+        val normalized = donor.copy(
+            id = 0L,
+            name = donor.name.trim(),
+            phone = digits.takeLast(10),
+            email = donor.email.trim(),
+            flatOrAddress = donor.flatOrAddress.trim(),
+            notes = donor.notes.trim(),
+            societyId = societyId,
+            isCustomAdded = true,
+            updatedAt = System.currentTimeMillis()
+        )
+        val existing = dao.findExisting(societyId, normalized.name, normalized.phone)
+        if (existing != null) {
+            val updated = existing.copy(
+                name = normalized.name,
+                phone = normalized.phone,
+                email = normalized.email,
+                flatOrAddress = normalized.flatOrAddress,
+                notes = normalized.notes,
+                isCustomAdded = true,
+                updatedAt = System.currentTimeMillis()
+            )
+            dao.update(updated)
+            return syncDonorToCloud(updated)
+        }
+        val id = dao.insert(normalized)
+        if (id <= 0L) {
+            val raced = dao.findExisting(societyId, normalized.name, normalized.phone)
+                ?: error("Unable to save donor")
+            return syncDonorToCloud(raced)
+        }
+        val saved = normalized.copy(id = id)
+        return syncDonorToCloud(saved)
+    }
+
+    private suspend fun syncDonorToCloud(donor: Donor): Donor {
+        val firestoreId = firestoreService.saveDonor(donor, societyName = donor.societyId)
+        if (firestoreId.isNullOrBlank()) {
+            Log.w("SocietyRepository", "Donor saved locally; cloud sync will retry on the next manual sync")
+            return donor
+        }
+        val synced = donor.copy(firestoreId = firestoreId)
+        donorDao?.update(synced)
+        return synced
+    }
+
+    suspend fun addMaintenanceCharge(charge: MaintenanceCharge): Long {
+        val dao = maintenanceChargeDao ?: error("Maintenance ledger is not configured")
+        require(charge.flatNo.isNotBlank()) { "Flat number is required" }
+        require(charge.billingPeriod.matches(Regex("\\d{4}-\\d{2}"))) { "Billing period must use YYYY-MM format" }
+        require(charge.amount > 0.0 && charge.amount.isFinite()) { "Charge amount must be greater than zero" }
+        require(charge.amountPaid >= 0.0 && charge.amountPaid <= charge.amount) { "Paid amount must be between zero and the charge amount" }
+        require(dao.findForFlatAndPeriod(charge.flatNo.trim(), charge.billingPeriod) == null) {
+            "A maintenance charge already exists for this flat and billing period"
+        }
+        val normalized = charge.copy(
+            flatNo = charge.flatNo.trim(),
+            amountPaid = charge.amountPaid,
+            status = when {
+                charge.status == "WAIVED" -> "WAIVED"
+                charge.amountPaid >= charge.amount -> "PAID"
+                charge.amountPaid > 0.0 -> "PARTIALLY_PAID"
+                else -> "OPEN"
+            },
+            updatedAt = System.currentTimeMillis()
+        )
+        val id = dao.insert(normalized)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MAINTENANCE",
+                transactionId = id,
+                transactionRef = "${normalized.flatNo}/${normalized.billingPeriod}",
+                action = "CREATED",
+                reason = "Maintenance charge assessed",
+                performedById = normalized.recordedById,
+                performedByName = normalized.recordedByName.ifBlank { "Committee" },
+                performedByRole = "Treasurer",
+                newValueSummary = "amount=${normalized.amount}; paid=${normalized.amountPaid}; status=${normalized.status}"
+            )
+        )
+        return id
+    }
+
+    /** Updates a charge/payment record without processing money or contacting a payment gateway. */
+    suspend fun updateMaintenanceCharge(charge: MaintenanceCharge) {
+        val dao = maintenanceChargeDao ?: error("Maintenance ledger is not configured")
+        require(charge.id > 0) { "A saved maintenance charge is required" }
+        require(charge.flatNo.isNotBlank()) { "Flat number is required" }
+        require(charge.amount > 0.0 && charge.amount.isFinite()) { "Charge amount must be greater than zero" }
+        require(charge.amountPaid >= 0.0 && charge.amountPaid <= charge.amount) { "Paid amount must be between zero and the charge amount" }
+        val duplicate = dao.findForFlatAndPeriod(charge.flatNo.trim(), charge.billingPeriod)
+        require(duplicate == null || duplicate.id == charge.id) {
+            "A maintenance charge already exists for this flat and billing period"
+        }
+        val normalized = charge.copy(
+            flatNo = charge.flatNo.trim(),
+            status = when {
+                charge.status == "WAIVED" -> "WAIVED"
+                charge.amountPaid >= charge.amount -> "PAID"
+                charge.amountPaid > 0.0 -> "PARTIALLY_PAID"
+                else -> "OPEN"
+            },
+            updatedAt = System.currentTimeMillis()
+        )
+        val before = dao.findById(charge.id)
+        dao.update(normalized)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MAINTENANCE",
+                transactionId = normalized.id,
+                transactionRef = "${normalized.flatNo}/${normalized.billingPeriod}",
+                action = "UPDATED",
+                reason = "Maintenance charge or external payment record updated",
+                performedById = normalized.recordedById,
+                performedByName = normalized.recordedByName.ifBlank { "Committee" },
+                performedByRole = "Treasurer",
+                oldValueSummary = before?.let { "amount=${it.amount}; paid=${it.amountPaid}; status=${it.status}" }.orEmpty(),
+                newValueSummary = "amount=${normalized.amount}; paid=${normalized.amountPaid}; status=${normalized.status}"
+            )
+        )
+    }
 
     init {
         try {
@@ -433,15 +574,62 @@ class SocietyRepository(
             if (remoteMembers.isNotEmpty()) {
                 val currentLocalMembers = memberDao.getAllMembersList()
                 remoteMembers.forEach { remote ->
+                    // Legacy releases stored donors in the generic members collection.
+                    // Keep them in the donor directory, never as committee/member accounts.
+                    if (remote.role.equals("Resident Member", ignoreCase = true) ||
+                        remote.role.equals("Donor", ignoreCase = true)) {
+                        val donors = donorDao
+                        if (donors != null && remote.name.isNotBlank()) {
+                            val donorName = remote.name.trim()
+                            val donorPhone = remote.phone.trim()
+                            if (donors.findExisting(currentInfo.name, donorName, donorPhone) == null) {
+                                donors.insert(Donor(name = donorName, phone = donorPhone, email = remote.email.trim(), societyId = currentInfo.name))
+                            }
+                        }
+                        return@forEach
+                    }
                     val existing = (if (remote.id > 0) memberDao.getMemberById(remote.id) else null)
                         ?: (if (remote.email.isNotBlank()) memberDao.getMemberByEmail(remote.email) else null)
                         ?: (if (remote.phone.isNotBlank()) memberDao.getMemberByPhone(remote.phone) else null)
                         ?: currentLocalMembers.find { it.name.trim().equals(remote.name.trim(), ignoreCase = true) }
-
                     if (existing != null) {
                         memberDao.updateMember(remote.copy(id = existing.id))
                     } else {
                         memberDao.insertMember(remote.copy(id = 0L))
+                    }
+                }
+            }
+
+            // Merge the separate cloud donor directory into local storage.
+            val remoteDonors = firestoreService.fetchAllDonors(currentInfo.name)
+            val localDonorDao = donorDao
+            if (localDonorDao != null) {
+                remoteDonors.forEach { remote ->
+                    val existing = localDonorDao.findExisting(currentInfo.name, remote.name, remote.phone)
+                    if (existing == null) {
+                        localDonorDao.insert(remote.copy(id = 0L, societyId = currentInfo.name))
+                    } else {
+                        localDonorDao.update(
+                            existing.copy(
+                                firestoreId = remote.firestoreId.ifBlank { existing.firestoreId },
+                                name = remote.name,
+                                phone = remote.phone.ifBlank { existing.phone },
+                                email = remote.email.ifBlank { existing.email },
+                                flatOrAddress = remote.flatOrAddress.ifBlank { existing.flatOrAddress },
+                                notes = remote.notes.ifBlank { existing.notes },
+                                isCustomAdded = existing.isCustomAdded || remote.isCustomAdded,
+                                updatedAt = maxOf(existing.updatedAt, remote.updatedAt)
+                            )
+                        )
+                    }
+                }
+                // Push local-only contacts too, so offline-created donors reach other devices.
+                localDonorDao.getForSociety(currentInfo.name).forEach { local ->
+                    val firestoreId = firestoreService.saveDonor(local, societyName = currentInfo.name)
+                    if (firestoreId.isNullOrBlank()) {
+                        Log.w("SocietyRepository", "Donor cloud sync deferred for local record ${local.id}")
+                    } else if (local.firestoreId != firestoreId) {
+                        localDonorDao.update(local.copy(firestoreId = firestoreId))
                     }
                 }
             }
@@ -482,11 +670,16 @@ class SocietyRepository(
                         expenseDao.getExpenseByFirestoreId(remote.firestoreId)
                     } else null ?: expenseDao.getExpenseByDetails(remote.title, remote.expenseDate, remote.amount)
 
-                    if (existing != null) {
-                        expenseDao.updateExpense(remote.copy(id = existing.id, firestoreId = remote.firestoreId.ifBlank { existing.firestoreId }))
+                    val syncedExpense = if (existing != null) {
+                        remote.copy(
+                            id = existing.id,
+                            firestoreId = remote.firestoreId.ifBlank { existing.firestoreId }
+                        ).also { expenseDao.updateExpense(it) }
                     } else {
-                        expenseDao.insertExpense(remote.copy(id = 0L))
+                        val localId = expenseDao.insertExpense(remote.copy(id = 0L))
+                        remote.copy(id = localId).also { expenseDao.updateExpense(it) }
                     }
+                    syncExpenseCommitteeLedger(syncedExpense)
                 }
             }
 
@@ -557,6 +750,18 @@ class SocietyRepository(
                 }
             }
 
+            val localDonors = donorDao?.getForSociety(society.name) ?: emptyList()
+            var donorCount = 0
+            localDonors.forEach { donor ->
+                val cloudId = firestoreService.saveDonor(donor, societyName = society.name)
+                if (!cloudId.isNullOrBlank()) {
+                    donorCount++
+                    if (donor.firestoreId != cloudId) {
+                        donorDao?.update(donor.copy(firestoreId = cloudId))
+                    }
+                }
+            }
+
             val donations = donationDao.getAllDonationsList()
             var donationCount = 0
             donations.forEach { donation ->
@@ -587,12 +792,12 @@ class SocietyRepository(
                 }
             }
 
-            if (!societySaved && memberCount == 0 && donationCount == 0 && expenseCount == 0 && transactionCount == 0) {
+            if (!societySaved && memberCount == 0 && donorCount == 0 && donationCount == 0 && expenseCount == 0 && transactionCount == 0) {
                 val err = firestoreService.lastCloudError ?: "Permission denied or network unreachable"
                 Pair(false, "Cloud upload blocked: $err")
             } else {
                 societyPreferences?.setHasSyncedCloudData(true)
-                Pair(true, "Successfully uploaded to '${society.name}': Society profile, $memberCount members, $donationCount donations, $expenseCount expenses, and $transactionCount transactions to Cloud!")
+                Pair(true, "Successfully uploaded to '${society.name}': Society profile, $memberCount members, $donorCount donors, $donationCount donations, $expenseCount expenses, and $transactionCount transactions to Cloud!")
             }
         } catch (e: Exception) {
             Log.e("SocietyRepository", "Error uploading to Firestore: ${e.message}", e)
@@ -630,16 +835,28 @@ class SocietyRepository(
         } catch (_: Exception) {}
     }
 
-    suspend fun insertMember(member: Member): Long {
+    suspend fun insertMember(
+        member: Member,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
+    ): Long {
+        require(openingBalance.isFinite() && openingBalance >= 0.0) {
+            "Opening balance must be finite and non-negative"
+        }
         val societyName = getSocietyInfo().name
         val id = memberDao.insertMember(member)
         val saved = member.copy(id = id)
         firestoreService.saveMember(saved, societyName = societyName)
-        try {
-            val cm = CommitteeMember.fromMember(saved).copy(societyId = societyName)
-            committeeMemberDao?.insertCommitteeMember(cm)
-            firestoreService.saveCommitteeMember(cm, societyName = societyName)
-        } catch (_: Exception) {}
+        val committeeMember = CommitteeMember.fromMember(saved).copy(
+            id = id,
+            societyId = societyName
+        )
+        // Keep the committee account keyed to the same member ID used by the member directory.
+        insertCommitteeMember(
+            member = committeeMember,
+            openingBalance = openingBalance,
+            openingBalanceNotes = openingBalanceNotes
+        )
         return id
     }
 
@@ -723,26 +940,44 @@ class SocietyRepository(
             donationDao.updateDonation(withFirestore)
         }
 
-        // Register the donor in 4) All donated members
-        if (donation.donorName.isNotBlank()) {
+        // Donors are maintained in their own list. Never add a donor to Member
+        // or CommitteeMember: a donation does not grant committee membership.
+        val donors = donorDao
+        if (donors != null && donation.donorName.isNotBlank()) {
             try {
-                val existing = memberDao.getAllMembersList().find {
-                    it.name.equals(donation.donorName.trim(), ignoreCase = true) ||
-                    (donation.phone.isNotBlank() && it.phone.isNotBlank() && it.phone == donation.phone)
-                }
-                if (existing == null) {
-                    val donorMember = Member(
-                        name = donation.donorName.trim(),
-                        phone = donation.phone.trim(),
-                        email = if (userEmail.isNotBlank()) userEmail else donation.userEmail.trim(),
-                        role = "Resident Member",
-                        pin = "",
-                        isSuperAdmin = false,
-                        flatNo = "Member"
+                val donorName = donation.donorName.trim()
+                val donorPhone = donation.phone.trim()
+                val donorEmail = userEmail.ifBlank { donation.userEmail }.trim()
+                val existing = donors.findExisting(societyName, donorName, donorPhone)
+                val donorRecord = if (existing == null) {
+                    val localId = donors.insert(
+                        Donor(
+                            name = donorName,
+                            phone = donorPhone.filter { it.isDigit() }.takeLast(10),
+                            email = donorEmail,
+                            societyId = societyName
+                        )
                     )
-                    insertMember(donorMember)
+                    Donor(
+                        id = localId.coerceAtLeast(0L),
+                        name = donorName,
+                        phone = donorPhone.filter { it.isDigit() }.takeLast(10),
+                        email = donorEmail,
+                        societyId = societyName
+                    )
+                } else {
+                    val updated = existing.copy(
+                        phone = donorPhone.filter { it.isDigit() }.takeLast(10).ifBlank { existing.phone },
+                        email = donorEmail.ifBlank { existing.email },
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    donors.update(updated)
+                    updated
                 }
-            } catch (_: Exception) {}
+                syncDonorToCloud(donorRecord)
+            } catch (e: Exception) {
+                Log.w("SocietyRepository", "Donation saved, but donor directory update failed: ${e.message}")
+            }
         }
 
         return localId
@@ -881,24 +1116,97 @@ class SocietyRepository(
         userEmail: String = ""
     ): Long {
         val societyName = getSocietyInfo().name
-        val localId = expenseDao.insertExpense(expense.copy(societyId = societyName))
-        val withLocalId = expense.copy(id = localId, societyId = societyName)
-        val firestoreDocId = firestoreService.saveExpense(withLocalId, userId, userEmail, societyName = societyName)
-        if (firestoreDocId != null) {
-            val withFirestore = withLocalId.copy(
-                firestoreId = firestoreDocId,
-                userId = userId,
-                userEmail = userEmail
-            )
-            expenseDao.updateExpense(withFirestore)
+        require(expense.amount.isFinite() && expense.amount > 0.0) { "Expense amount must be greater than zero" }
+        if (expense.paidByCommitteeMemberId > 0L) {
+            val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+                ?: throw IllegalArgumentException("Selected committee payer was not found")
+            require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+                "Only an active committee member can be recorded as the personal payer"
+            }
         }
+        val localId = expenseDao.insertExpense(expense.copy(societyId = societyName))
+        var saved = expense.copy(id = localId, societyId = societyName)
+        val firestoreDocId = firestoreService.saveExpense(saved, userId, userEmail, societyName = societyName)
+        if (firestoreDocId != null) {
+            saved = saved.copy(firestoreId = firestoreDocId, userId = userId, userEmail = userEmail)
+            expenseDao.updateExpense(saved)
+        }
+        syncExpenseCommitteeLedger(saved)
         return localId
+    }
+
+    private suspend fun syncExpenseCommitteeLedger(expense: Expense) {
+        val dao = transactionDao ?: return
+        val reference = "EXPENSE-MEMBER-${expense.id}"
+        val existing = dao.getTransactionByReferenceNo(reference)
+        if (expense.isDeleted || expense.paidByCommitteeMemberId <= 0L) {
+            if (existing != null && !existing.isDeleted) {
+                val voided = existing.copy(
+                    isDeleted = true,
+                    deletionReason = if (expense.isDeleted) expense.deletionReason.ifBlank { "Linked expense deleted" } else "Expense funding source changed to trust funds",
+                    deletedAt = System.currentTimeMillis(),
+                    deletedByName = expense.deletedByName.ifBlank { expense.recordedByName },
+                    updatedAt = System.currentTimeMillis()
+                )
+                dao.updateTransaction(voided)
+                try { firestoreService.saveTransaction(voided, societyName = getSocietyInfo().name) } catch (_: Exception) {}
+            }
+            return
+        }
+        val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+            ?: throw IllegalArgumentException("Selected committee payer was not found")
+        require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+            "Only an active committee member can be recorded as the personal payer"
+        }
+        val now = System.currentTimeMillis()
+        val entry = Transaction(
+            id = existing?.id ?: 0L,
+            transactionType = CommitteeMemberAccountBalance.MEMBER_EXPENSE,
+            committeeMemberId = payer.id,
+            title = "Expense paid personally: ${expense.title}",
+            category = expense.category,
+            amount = expense.amount,
+            partyName = expense.paidTo,
+            partyPhone = payer.phone,
+            partyEmail = payer.email,
+            paymentMode = expense.paymentMode,
+            paymentDate = expense.expenseDate,
+            status = "COMPLETED",
+            receiptNo = expense.receiptUrl,
+            referenceNo = reference,
+            notes = "Linked expense #${expense.id}; ${expense.title}",
+            recordedById = expense.recordedById,
+            recordedByName = expense.recordedByName,
+            userId = expense.userId,
+            userEmail = expense.userEmail,
+            societyId = getSocietyInfo().name,
+            firestoreId = existing?.firestoreId ?: "",
+            isModified = existing?.isModified ?: false,
+            modificationReason = existing?.modificationReason ?: "",
+            modifiedAt = existing?.modifiedAt ?: 0L,
+            modifiedByName = existing?.modifiedByName ?: "",
+            isDeleted = false,
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now
+        )
+        if (existing == null) insertTransaction(entry) else {
+            dao.updateTransaction(entry)
+            try { firestoreService.saveTransaction(entry, societyName = getSocietyInfo().name) } catch (_: Exception) {}
+        }
     }
 
     suspend fun updateExpense(expense: Expense) {
         val societyName = getSocietyInfo().name
+        if (expense.paidByCommitteeMemberId > 0L && !expense.isDeleted) {
+            val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+                ?: throw IllegalArgumentException("Selected committee payer was not found")
+            require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+                "Only an active committee member can be recorded as the personal payer"
+            }
+        }
         expenseDao.updateExpense(expense)
         firestoreService.updateExpense(expense, societyName = societyName)
+        syncExpenseCommitteeLedger(expense)
     }
 
     /**
@@ -978,10 +1286,18 @@ class SocietyRepository(
 
     suspend fun deleteExpense(expense: Expense) {
         val societyName = getSocietyInfo().name
-        expenseDao.deleteExpense(expense)
+        val deleted = expense.copy(
+            isDeleted = true,
+            deletionReason = expense.deletionReason.ifBlank { "Expense deleted" },
+            deletedAt = System.currentTimeMillis(),
+            deletedByName = expense.deletedByName.ifBlank { expense.recordedByName },
+            updatedAt = System.currentTimeMillis()
+        )
+        expenseDao.updateExpense(deleted)
         if (expense.firestoreId.isNotBlank()) {
-            firestoreService.deleteExpense(expense.firestoreId, societyName = societyName)
+            firestoreService.updateExpense(deleted, societyName = societyName)
         }
+        syncExpenseCommitteeLedger(deleted)
     }
 
     suspend fun deleteExpenseById(id: Long) {
@@ -1056,6 +1372,121 @@ class SocietyRepository(
             // Offline fallback
         }
         return localId
+    }
+
+
+    /**
+     * Record the opening advance for a newly created committee member as an immutable ledger entry.
+     * Call after the member has been saved and has a stable local ID.
+     */
+    suspend fun recordCommitteeMemberOpeningBalance(
+        member: CommitteeMember,
+        amount: Double,
+        recordedByName: String = "Admin",
+        notes: String = ""
+    ): Long {
+        require(member.id > 0L) { "Save the committee member before recording an opening balance" }
+        require(amount.isFinite() && amount >= 0.0) { "Opening amount must be finite and non-negative" }
+        val existing = transactionDao?.getMemberLedgerList(member.id).orEmpty()
+        val existingOpening = existing.firstOrNull {
+            it.transactionType == CommitteeMemberAccountBalance.OPENING_BALANCE
+        }
+        if (existingOpening != null) return existingOpening.id
+        val entry = Transaction(
+            transactionType = CommitteeMemberAccountBalance.OPENING_BALANCE,
+            committeeMemberId = member.id,
+            title = "Opening advance — ${member.name}",
+            category = "Committee Member Account",
+            amount = amount,
+            partyName = member.name,
+            partyPhone = member.phone,
+            partyEmail = member.email,
+            paymentDate = member.createdAt,
+            status = "COMPLETED",
+            notes = notes.ifBlank { "Opening balance recorded at committee member creation" },
+            recordedByName = recordedByName,
+            societyId = member.societyId
+        )
+        val id = insertTransaction(entry)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MEMBER_ACCOUNT",
+                transactionId = id,
+                transactionRef = "Member ${member.id}",
+                action = "OPENING_BALANCE_RECORDED",
+                reason = notes.ifBlank { "Opening balance recorded for committee member" },
+                performedByName = recordedByName,
+                oldValueSummary = "No opening balance",
+                newValueSummary = "₹${"%.2f".format(java.util.Locale.ROOT, amount)}",
+                societyId = member.societyId
+            )
+        )
+        return id
+    }
+
+    /**
+     * Record either a trust-to-member reimbursement or a member-to-trust return.
+     * This creates a ledger entry; it does not itself confirm a bank transfer occurred.
+     */
+    suspend fun recordCommitteeMemberSettlement(
+        member: CommitteeMember,
+        amount: Double,
+        trustPaysMember: Boolean,
+        paymentMode: String,
+        referenceNo: String = "",
+        notes: String,
+        recordedByName: String = "Admin",
+        paymentDate: Long = System.currentTimeMillis()
+    ): Long {
+        require(member.id > 0L) { "A saved committee member is required" }
+        require(amount.isFinite() && amount > 0.0) { "Settlement amount must be finite and greater than zero" }
+        require(notes.isNotBlank()) { "A settlement reason/note is required for the audit trail" }
+        val ledger = transactionDao?.getMemberLedgerList(member.id).orEmpty()
+        val balance = CommitteeMemberAccountBalance.calculate(member.id, ledger)
+        val outstanding = if (trustPaysMember) balance.amountTrustMustReimburse else balance.amountMemberMustReturn
+        require(outstanding > 0.0) {
+            if (trustPaysMember) "The trust does not currently owe this member" else "This member does not currently owe funds to the trust"
+        }
+        require(amount <= outstanding + 0.005) { "Settlement cannot exceed the outstanding amount of ₹${"%.2f".format(java.util.Locale.ROOT, outstanding)}" }
+
+        val type = if (trustPaysMember) {
+            CommitteeMemberAccountBalance.SETTLEMENT_TO_MEMBER
+        } else {
+            CommitteeMemberAccountBalance.SETTLEMENT_FROM_MEMBER
+        }
+        val direction = if (trustPaysMember) "Trust to member" else "Member to trust"
+        val entry = Transaction(
+            transactionType = type,
+            committeeMemberId = member.id,
+            title = "Settlement: $direction — ${member.name}",
+            category = "Committee Member Settlement",
+            amount = amount,
+            partyName = member.name,
+            partyPhone = member.phone,
+            partyEmail = member.email,
+            paymentMode = paymentMode,
+            paymentDate = paymentDate,
+            status = "COMPLETED",
+            referenceNo = referenceNo,
+            notes = notes,
+            recordedByName = recordedByName,
+            societyId = member.societyId
+        )
+        val id = insertTransaction(entry)
+        auditLogDao?.insertAuditLog(
+            AuditLog(
+                transactionType = "MEMBER_ACCOUNT",
+                transactionId = id,
+                transactionRef = "Member ${member.id}",
+                action = if (trustPaysMember) "SETTLEMENT_TO_MEMBER" else "SETTLEMENT_FROM_MEMBER",
+                reason = notes,
+                performedByName = recordedByName,
+                oldValueSummary = "Net amount due to trust: ₹${"%.2f".format(java.util.Locale.ROOT, balance.netAmountDueToTrust)}",
+                newValueSummary = "Settlement recorded: ₹${"%.2f".format(java.util.Locale.ROOT, amount)} ($direction)",
+                societyId = member.societyId
+            )
+        )
+        return id
     }
 
     suspend fun updateTransaction(transaction: Transaction) {
@@ -1150,10 +1581,24 @@ class SocietyRepository(
     // Committee Members Operations
     // ==========================================
 
-    suspend fun insertCommitteeMember(member: CommitteeMember): Long {
+    suspend fun insertCommitteeMember(
+        member: CommitteeMember,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
+    ): Long {
+        require(openingBalance.isFinite() && openingBalance >= 0.0) {
+            "Opening balance must be finite and non-negative"
+        }
         val societyName = getSocietyInfo().name
         val localId = committeeMemberDao?.insertCommitteeMember(member) ?: 0L
         val withId = member.copy(id = if (member.id == 0L) localId else member.id)
+        if (withId.id > 0L) {
+            recordCommitteeMemberOpeningBalance(
+                member = withId,
+                amount = openingBalance,
+                notes = openingBalanceNotes
+            )
+        }
         try {
             val firestoreId = firestoreService.saveCommitteeMember(withId, societyName = societyName)
             if (firestoreId != null && firestoreId.isNotBlank()) {

@@ -312,6 +312,7 @@ fun SocietyMainApp(
     // Audit Log & Statutory Compliance State
     val auditLogs by viewModel.filteredAuditLogs.collectAsState()
     val auditedTransactions by viewModel.auditedTransactions.collectAsState()
+    val allTransactions by viewModel.allTransactions.collectAsState()
     val auditSearchQuery by viewModel.auditSearchQuery.collectAsState()
     val auditActionFilter by viewModel.auditActionFilter.collectAsState()
     val auditTypeFilter by viewModel.auditTypeFilter.collectAsState()
@@ -702,7 +703,13 @@ fun SocietyMainApp(
                         onSearchQueryChange = viewModel::setDonorSearchQuery,
                         filterType = donorFilterType,
                         onFilterTypeChange = viewModel::setDonorFilterType,
-                        onAddCustomDonor = viewModel::addCustomDonor,
+                        onAddCustomDonor = { name, phone, email, flat, notes ->
+                            viewModel.addCustomDonor(name, phone, email, flat, notes) { message ->
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        },
                         isProSubscriber = true,
                         onNavigateBack = { currentScreen = AppScreen.DONATIONS }
                     )
@@ -765,6 +772,7 @@ fun SocietyMainApp(
                         societyName = societyInfo.name,
                         categoryBudgets = categoryBudgets,
                         existingExpensesForCategory = allExpenses.sumOf { it.amount },
+                        committeeMembers = members,
                         isDarkTheme = isDarkTheme,
                         onToggleTheme = onToggleTheme,
                         onNavigateBack = { currentScreen = AppScreen.EXPENSES },
@@ -795,6 +803,32 @@ fun SocietyMainApp(
                         onRestoreBackupClick = { showRestoreBackupDialog = true },
                         donations = allDonations,
                         expenses = allExpenses,
+                        transactions = allTransactions,
+                        onRecordCommitteeSettlement = { member, amount, trustPaysMember, paymentMode, referenceNo, notes ->
+                            if (isAdminMode && isSuperAdmin) {
+                                viewModel.recordCommitteeMemberSettlement(
+                                    member = member,
+                                    amount = amount,
+                                    trustPaysMember = trustPaysMember,
+                                    paymentMode = paymentMode,
+                                    referenceNo = referenceNo,
+                                    notes = notes
+                                ) { result ->
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            result.fold(
+                                                onSuccess = { "Settlement recorded in committee ledger." },
+                                                onFailure = { "Settlement failed: ${it.message ?: "please check the outstanding balance"}" }
+                                            )
+                                        )
+                                    }
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Only an authorized administrator can record settlements.")
+                                }
+                            }
+                        },
                         timePeriodFilter = donationTimePeriod,
                         onTimePeriodChange = viewModel::setDonationTimePeriod,
                         onOpenAuthDialog = { showAuthMemberDialog = true },
@@ -1302,16 +1336,17 @@ fun SocietyMainApp(
     // 2. Add / Edit Expense Dialog
     if (showAddExpenseDialog || editingExpense != null) {
         val target = editingExpense
-        val selectedCategory = target?.category ?: "Maintenance"
+        val selectedCategory = target?.category ?: "Puja & Rituals"
         val existingExpensesForCat = allExpenses.filter { it.category == selectedCategory }.sumOf { it.amount }
         AddEditExpenseDialog(
             existingExpense = target,
             currentMember = activeMember,
             categoryBudgets = categoryBudgets,
             existingExpensesForCategory = existingExpensesForCat,
-            onSave = { title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, modificationReason ->
+            committeeMembers = members,
+            onSave = { title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, modificationReason, paidByCommitteeMemberId ->
                 if (target == null) {
-                    viewModel.addExpense(title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl)
+                    viewModel.addExpense(title, category, amount, expenseDate, paidTo, paymentMode, receiptUrl, paidByCommitteeMemberId = paidByCommitteeMemberId)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Expense of ₹${amount.toInt()} recorded!")
                     }
@@ -1323,7 +1358,8 @@ fun SocietyMainApp(
                         expenseDate = expenseDate,
                         paidTo = paidTo,
                         paymentMode = paymentMode,
-                        receiptUrl = receiptUrl
+                        receiptUrl = receiptUrl,
+                        paidByCommitteeMemberId = paidByCommitteeMemberId
                     )
                     if (modificationReason.isNotBlank() && isSuperAdmin) {
                         viewModel.superAdminModifyExpense(target, updated, modificationReason) { success, msg ->
@@ -1482,9 +1518,9 @@ fun SocietyMainApp(
         val target = editingMember
         AddEditMemberDialog(
             existingMember = target,
-            onSave = { name, email, phone, role, pin, isSuperAdminRole ->
+            onSave = { name, email, phone, role, pin, isSuperAdminRole, openingBalance, openingBalanceNotes ->
                 if (target == null) {
-                    viewModel.addMember(name, email, phone, role, pin, isSuperAdminRole)
+                    viewModel.addMember(name, email, phone, role, pin, isSuperAdminRole, openingBalance, openingBalanceNotes)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Member '$name' added successfully!")
                     }
@@ -1668,13 +1704,16 @@ fun SocietyMainApp(
     // 16. Monthly Category-wise Budget Cap Manager Dialog
     if (showBudgetDialog) {
         val expenseCategories = listOf(
+            "Puja & Rituals",
+            "Prasad & Annadanam",
+            "Temple Upkeep",
             "Events & Festivals",
-            "Maintenance",
             "Repairs",
             "Utilities",
             "Refreshments",
             "Admin & Legal",
-            "Miscellaneous"
+            "Miscellaneous",
+            "Maintenance"
         )
         CategoryBudgetDialog(
             categories = expenseCategories,

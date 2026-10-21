@@ -15,6 +15,7 @@ data class Expense(
     val paidTo: String, // Vendor or Person name
     val paymentMode: String, // "Cash", "Online", "Cheque", "UPI", "Bank Transfer"
     val receiptUrl: String = "", // Receipt note / reference / bill no
+    val paidByCommitteeMemberId: Long = 0L, // 0 means paid from trust funds; otherwise member paid personally
     val recordedById: Long = 1,
     val recordedByName: String = "Admin",
     val userId: String = "", // Associated Firebase UID or Member ID
@@ -45,6 +46,7 @@ data class Expense(
             "paidTo" to paidTo,
             "paymentMode" to paymentMode,
             "receiptUrl" to receiptUrl,
+            "paidByCommitteeMemberId" to paidByCommitteeMemberId,
             "recordedById" to recordedById,
             "recordedByName" to recordedByName,
             "userId" to userId,
@@ -78,6 +80,7 @@ data class Expense(
                     paidTo = doc.getString("paidTo") ?: "",
                     paymentMode = doc.getString("paymentMode") ?: "Cash",
                     receiptUrl = doc.getString("receiptUrl") ?: "",
+                    paidByCommitteeMemberId = doc.getLong("paidByCommitteeMemberId") ?: 0L,
                     recordedById = doc.getLong("recordedById") ?: 1L,
                     recordedByName = doc.getString("recordedByName") ?: "Admin",
                     userId = doc.getString("userId") ?: "",

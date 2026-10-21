@@ -10,9 +10,11 @@ import com.example.data.model.AuditLog
 import com.example.data.model.CategoryExpenseSummary
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.FinancialKPIs
 import com.example.data.model.Member
+import com.example.data.model.MaintenanceCharge
 import com.example.data.model.MonthlyFlowSummary
 import com.example.data.model.PaymentModeSummary
 import com.example.data.model.Pledge
@@ -50,7 +52,9 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         firestoreService = firestoreService,
         transactionDao = database.transactionDao(),
         pledgeDao = database.pledgeDao(),
-        committeeMemberDao = database.committeeMemberDao()
+        committeeMemberDao = database.committeeMemberDao(),
+        maintenanceChargeDao = database.maintenanceChargeDao(),
+        donorDao = database.donorDao()
     )
 
     private val _societyInfo = MutableStateFlow(preferences.getSocietyInfo())
@@ -120,13 +124,16 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
 
     // Category-wise Monthly Budget Caps
     val standardExpenseCategories = listOf(
+        "Puja & Rituals",
+        "Prasad & Annadanam",
+        "Temple Upkeep",
         "Events & Festivals",
-        "Maintenance",
         "Repairs",
         "Utilities",
         "Refreshments",
         "Admin & Legal",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Maintenance"
     )
 
     private val _categoryBudgets = MutableStateFlow(preferences.getAllCategoryBudgets(standardExpenseCategories))
@@ -145,6 +152,21 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     val allMembers: StateFlow<List<Member>> = repository.allMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val members: StateFlow<List<Member>> = allMembers
+
+    val maintenanceCharges: StateFlow<List<MaintenanceCharge>> = repository.allMaintenanceCharges
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addMaintenanceCharge(charge: MaintenanceCharge, onComplete: (Result<Long>) -> Unit = {}) {
+        viewModelScope.launch {
+            onComplete(runCatching { repository.addMaintenanceCharge(charge) })
+        }
+    }
+
+    fun updateMaintenanceCharge(charge: MaintenanceCharge, onComplete: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch {
+            onComplete(runCatching { repository.updateMaintenanceCharge(charge) })
+        }
+    }
 
     val allCommitteeMembers: StateFlow<List<CommitteeMember>> = repository.allCommitteeMembers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -786,8 +808,8 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Donors Directory & WhatsApp Broadcast State
-    private val _customDonors = MutableStateFlow<List<com.example.data.model.Donor>>(emptyList())
-    val customDonors: StateFlow<List<com.example.data.model.Donor>> = _customDonors.asStateFlow()
+    val customDonors: StateFlow<List<com.example.data.model.Donor>> = repository.allDonors
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _donorSearchQuery = MutableStateFlow("")
     val donorSearchQuery: StateFlow<String> = _donorSearchQuery.asStateFlow()
@@ -797,24 +819,23 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
 
     val allDonors: StateFlow<List<com.example.data.model.DonorSummary>> = combine(
         allDonations,
-        _customDonors,
+        customDonors,
         _societyInfo
-    ) { donations, customList, society ->
+    ) { donations, donorRecords, society ->
         val donorMap = mutableMapOf<String, com.example.data.model.DonorSummary>()
+        fun donorKey(phone: String, name: String): String =
+            if (phone.isNotBlank()) phone.filter { it.isDigit() }.takeLast(10) else name.trim().lowercase()
 
-        // 1. Process all recorded donations in this society
         donations.filter { !it.isDeleted }.forEach { donation ->
-            val key = if (donation.phone.isNotBlank()) donation.phone.trim() else donation.donorName.trim().lowercase()
+            val key = donorKey(donation.phone, donation.donorName)
             val existing = donorMap[key]
             val receivedAmt = if (donation.status == "received") donation.amount else 0.0
             val pendingAmt = if (donation.status == "pending") donation.amount else 0.0
-
             if (existing == null) {
                 donorMap[key] = com.example.data.model.DonorSummary(
                     name = donation.donorName,
                     phone = donation.phone,
                     email = donation.userEmail,
-                    flatOrAddress = "",
                     totalDonated = donation.amount,
                     totalReceived = receivedAmt,
                     totalPending = pendingAmt,
@@ -825,41 +846,40 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
                     societyId = society.registrationNo
                 )
             } else {
-                val updatedModes = (existing.paymentModes + donation.paymentMode).distinct().filter { it.isNotBlank() }
-                val updatedLastDate = maxOf(existing.lastDonationDate, donation.paymentDate)
                 donorMap[key] = existing.copy(
                     totalDonated = existing.totalDonated + donation.amount,
                     totalReceived = existing.totalReceived + receivedAmt,
                     totalPending = existing.totalPending + pendingAmt,
                     donationCount = existing.donationCount + 1,
-                    lastDonationDate = updatedLastDate,
-                    paymentModes = updatedModes,
+                    lastDonationDate = maxOf(existing.lastDonationDate, donation.paymentDate),
+                    paymentModes = (existing.paymentModes + donation.paymentMode).distinct().filter { it.isNotBlank() },
                     notes = if (donation.notes.isNotBlank()) "${existing.notes} | ${donation.notes}".trim(' ', '|') else existing.notes
                 )
             }
         }
 
-        // 2. Add any custom pre-registered donors who haven't made a donation yet
-        customList.forEach { custom ->
-            val key = if (custom.phone.isNotBlank()) custom.phone.trim() else custom.name.trim().lowercase()
-            if (!donorMap.containsKey(key)) {
+        donorRecords.forEach { donor ->
+            val key = donorKey(donor.phone, donor.name)
+            val existing = donorMap[key]
+            if (existing == null) {
                 donorMap[key] = com.example.data.model.DonorSummary(
-                    name = custom.name,
-                    phone = custom.phone,
-                    email = custom.email,
-                    flatOrAddress = custom.flatOrAddress,
-                    totalDonated = 0.0,
-                    totalReceived = 0.0,
-                    totalPending = 0.0,
-                    donationCount = 0,
-                    lastDonationDate = custom.createdAt,
-                    paymentModes = emptyList(),
-                    notes = custom.notes,
+                    name = donor.name,
+                    phone = donor.phone,
+                    email = donor.email,
+                    flatOrAddress = donor.flatOrAddress,
+                    notes = donor.notes,
                     societyId = society.registrationNo
+                )
+            } else {
+                donorMap[key] = existing.copy(
+                    name = donor.name,
+                    phone = donor.phone,
+                    email = donor.email.ifBlank { existing.email },
+                    flatOrAddress = donor.flatOrAddress,
+                    notes = donor.notes.ifBlank { existing.notes }
                 )
             }
         }
-
         donorMap.values.sortedByDescending { it.totalDonated }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -890,19 +910,44 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
     fun setDonorSearchQuery(query: String) { _donorSearchQuery.value = query }
     fun setDonorFilterType(filter: String) { _donorFilterType.value = filter }
 
-    fun addCustomDonor(name: String, phone: String, email: String, flatOrAddress: String, notes: String) {
-        val cleanPhone = phone.trim().filter { it.isDigit() }
-        if (name.isBlank() || cleanPhone.length != 10) return
-        val newDonor = com.example.data.model.Donor(
-            name = name.trim(),
+    fun addCustomDonor(
+        name: String,
+        phone: String,
+        email: String,
+        flatOrAddress: String,
+        notes: String,
+        onResult: (String) -> Unit = {}
+    ) {
+        val cleanName = name.trim()
+        val cleanPhone = phone.filter { it.isDigit() }
+        if (cleanName.isBlank()) {
+            onResult("Donor name is required.")
+            return
+        }
+        if (cleanPhone.length != 10) {
+            onResult("Enter a valid 10-digit donor phone number.")
+            return
+        }
+        val donor = com.example.data.model.Donor(
+            name = cleanName,
             phone = cleanPhone,
             email = email.trim(),
             flatOrAddress = flatOrAddress.trim(),
             notes = notes.trim(),
-            societyId = _societyInfo.value.registrationNo,
+            societyId = _societyInfo.value.name,
             isCustomAdded = true
         )
-        _customDonors.value = (_customDonors.value + newDonor)
+        viewModelScope.launch {
+            runCatching { repository.addCustomDonor(donor) }
+                .onSuccess { saved ->
+                    onResult("Donor '" + saved.name + "' saved successfully.")
+                }
+                .onFailure { error ->
+                    android.util.Log.e("SocietyViewModel", "Unable to save donor", error)
+                    onResult(error.message?.takeIf { it.isNotBlank() }
+                        ?: "Unable to save donor. Please try again.")
+                }
+        }
     }
 
     // Filter Setters
@@ -1016,6 +1061,35 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun recordCommitteeMemberSettlement(
+        member: Member,
+        amount: Double,
+        trustPaysMember: Boolean,
+        paymentMode: String,
+        referenceNo: String,
+        notes: String,
+        onResult: (Result<Long>) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val result = runCatching {
+                val committeeMember = CommitteeMember.fromMember(member).copy(
+                    id = member.id,
+                    societyId = repository.getSocietyInfo().name
+                )
+                repository.recordCommitteeMemberSettlement(
+                    member = committeeMember,
+                    amount = amount,
+                    trustPaysMember = trustPaysMember,
+                    paymentMode = paymentMode,
+                    referenceNo = referenceNo,
+                    notes = notes,
+                    recordedByName = _currentMember.value?.name ?: "Admin"
+                )
+            }
+            onResult(result)
+        }
+    }
+
     // CRUD for Expenses
     fun addExpense(
         title: String,
@@ -1025,6 +1099,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         paidTo: String,
         paymentMode: String,
         receiptUrl: String,
+        paidByCommitteeMemberId: Long = 0L,
         onSuccess: ((Expense) -> Unit)? = null
     ) {
         if (amount <= 0 || title.isBlank() || paidTo.isBlank()) {
@@ -1161,8 +1236,11 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         phone: String,
         role: String,
         pin: String = "",
-        isSuperAdmin: Boolean = false
+        isSuperAdmin: Boolean = false,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
     ) {
+        if (!openingBalance.isFinite() || openingBalance < 0.0) return
         viewModelScope.launch {
             val member = Member(
                 name = name.trim(),
@@ -1172,7 +1250,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
                 pin = pin.trim(),
                 isSuperAdmin = isSuperAdmin
             )
-            repository.insertMember(member)
+            repository.insertMember(member, openingBalance, openingBalanceNotes)
         }
     }
 

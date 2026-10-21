@@ -36,6 +36,7 @@ interface UserRepositoryContract {
     val currentEmail: String?
 
     suspend fun login(email: String, password: String): AuthOpResult<User>
+    suspend fun loginWithGoogleIdToken(idToken: String): AuthOpResult<User>
     suspend fun loginWithPhoneOtp(phone: String, name: String = "", role: String = "Resident Member"): AuthOpResult<User>
     suspend fun loginWithGoogle(
         email: String,
@@ -146,6 +147,49 @@ class UserRepository(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Notice: Failed to restore user session: ${e.message}")
+        }
+    }
+
+    /**
+     * Signs in only after Firebase validates a Google ID token and establishes a Firebase session.
+     */
+    override suspend fun loginWithGoogleIdToken(idToken: String): AuthOpResult<User> = withContext(Dispatchers.IO) {
+        when (val result = firebaseAuthManager.signInWithGoogleIdToken(idToken)) {
+            is AuthOpResult.Error -> result
+            is AuthOpResult.Success -> {
+                val firebaseUser = result.data
+                val email = firebaseUser.email?.trim().orEmpty()
+                if (email.isBlank()) {
+                    firebaseAuthManager.signOut()
+                    return@withContext AuthOpResult.Error("The verified Google account did not provide an email address.")
+                }
+                val allMembers = memberDao.getAllMembersList()
+                val matchedMember = allMembers.find { it.email.equals(email, ignoreCase = true) }
+                val isSuper = isSuperAdminEmail(email) || matchedMember?.isSuperAdmin == true
+                val societyName = societyPreferences.getSocietyInfo().name
+                val user = if (matchedMember != null) {
+                    matchedMember.toUser(societyName).copy(
+                        id = firebaseUser.uid,
+                        name = firebaseUser.displayName?.ifBlank { null } ?: matchedMember.name,
+                        email = email,
+                        societyName = societyName,
+                        isSuperAdmin = isSuper
+                    )
+                } else {
+                    User(
+                        id = firebaseUser.uid,
+                        name = firebaseUser.displayName?.ifBlank { null } ?: email.substringBefore("@"),
+                        email = email,
+                        role = if (isSuper) "President" else "Public Resident",
+                        isSuperAdmin = isSuper,
+                        societyName = societyName
+                    )
+                }
+                societyPreferences.saveLoggedInUser(user.id, user.email, user.name, user.role, user.phone)
+                _currentUser.value = user
+                _accessProfile.value = firebaseAuthManager.resolveAccessProfile(email, allMembers)
+                AuthOpResult.Success(user, "Google account verified by Firebase. Signed in as ${user.name}.")
+            }
         }
     }
 
@@ -552,10 +596,11 @@ class UserRepository(
         user
     }
 
-    private fun isSuperAdminEmail(email: String): Boolean {
-        val lower = email.lowercase().trim()
-        return lower.isNotBlank() && lower.startsWith("admin@")
-    }
+    /**
+     * Super-admin access must be assigned explicitly to a roster member.
+     * An email prefix such as "admin@" is not proof of authorization.
+     */
+    private fun isSuperAdminEmail(email: String): Boolean = false
 
     private fun String.capitalizeWords(): String {
         return split(" ").joinToString(" ") { word ->

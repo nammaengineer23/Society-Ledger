@@ -14,13 +14,13 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface CommitteeMemberDao {
-    @Query("SELECT * FROM committee_members ORDER BY id ASC")
+    @Query("SELECT * FROM committee_members WHERE role NOT IN ('Resident Member', 'Donor') ORDER BY id ASC")
     fun getAllCommitteeMembers(): Flow<List<CommitteeMember>>
 
     @Query("SELECT * FROM committee_members ORDER BY id ASC")
     suspend fun getAllCommitteeMembersList(): List<CommitteeMember>
 
-    @Query("SELECT * FROM committee_members WHERE status = 'ACTIVE' ORDER BY id ASC")
+    @Query("SELECT * FROM committee_members WHERE status = 'ACTIVE' AND role NOT IN ('Resident Member', 'Donor') ORDER BY id ASC")
     fun getActiveCommitteeMembers(): Flow<List<CommitteeMember>>
 
     @Query("SELECT * FROM committee_members WHERE id = :id LIMIT 1")
@@ -29,7 +29,7 @@ interface CommitteeMemberDao {
     @Query("SELECT * FROM committee_members WHERE role = :role LIMIT 1")
     suspend fun getCommitteeMemberByRole(role: String): CommitteeMember?
 
-    @Query("SELECT COUNT(*) FROM committee_members")
+    @Query("SELECT COUNT(*) FROM committee_members WHERE role NOT IN ('Resident Member', 'Donor')")
     suspend fun getCommitteeMemberCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

@@ -74,6 +74,19 @@ class FakeUserRepository : UserRepositoryContract {
         }
     }
 
+    override suspend fun loginWithGoogleIdToken(idToken: String): AuthOpResult<User> {
+        if (idToken.isBlank()) return AuthOpResult.Error("Google ID token is required.")
+        val user = User(
+            id = "firebase_test_uid",
+            name = "Verified Google User",
+            email = "verified@gmail.com",
+            role = "Public Resident"
+        )
+        _currentUser.value = user
+        _accessProfile.value = authManager.resolveAccessProfile(user.email, emptyList())
+        return AuthOpResult.Success(user, "Google ID token verified")
+    }
+
     override suspend fun loginWithPhoneOtp(phone: String, name: String, role: String): AuthOpResult<User> {
         val user = User(id = "user_phone", name = name.ifBlank { "Resident $phone" }, email = "$phone@society.org", role = role)
         _currentUser.value = user
@@ -262,6 +275,45 @@ class UserAuthTest {
         assertTrue(registerCallbackCalled)
         assertEquals("New Resident", viewModel.currentUser.value?.name)
         assertEquals("new.resident@society.org", viewModel.currentUser.value?.email)
+    }
+
+    @Test
+    fun accessProfileDoesNotGrantCommitteeRoleByNamePrefix() {
+        val manager = FirebaseAuthManager.getInstance()
+        val roster = listOf(
+            Member(
+                id = 7L,
+                name = "Admin User",
+                email = "adminuser@example.com",
+                role = "Super Admin",
+                isSuperAdmin = true
+            )
+        )
+
+        val profile = manager.resolveAccessProfile("adminuser2@example.com", roster)
+
+        assertFalse(profile.isCommitteeMember)
+        assertFalse(profile.isSuperAdmin)
+        assertTrue(profile.isPublicResident)
+    }
+
+    @Test
+    fun accessProfileGrantsCommitteeRoleOnlyForExactEmailMatch() {
+        val manager = FirebaseAuthManager.getInstance()
+        val roster = listOf(
+            Member(
+                id = 7L,
+                name = "Admin User",
+                email = "adminuser@example.com",
+                role = "Super Admin",
+                isSuperAdmin = true
+            )
+        )
+
+        val profile = manager.resolveAccessProfile("ADMINUSER@example.com", roster)
+
+        assertTrue(profile.isCommitteeMember)
+        assertTrue(profile.isSuperAdmin)
     }
 
     @Test

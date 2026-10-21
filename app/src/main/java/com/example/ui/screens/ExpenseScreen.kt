@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.Expense
+import com.example.data.model.Member
 import com.example.data.remote.FirestoreService
 import com.example.ui.theme.ColorExpenseBg
 import com.example.ui.theme.ColorExpenseRed
@@ -121,6 +122,7 @@ fun ExpenseScreen(
     onToggleTheme: () -> Unit = {},
     onNavigateBack: () -> Unit = {},
     onExpenseSaved: (Expense) -> Unit = {},
+    committeeMembers: List<Member> = emptyList(),
     firestoreService: FirestoreService = remember { FirestoreService() },
     modifier: Modifier = Modifier
 ) {
@@ -132,24 +134,29 @@ fun ExpenseScreen(
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()) }
 
     val categories = listOf(
+        "Puja & Rituals",
+        "Prasad & Annadanam",
+        "Temple Upkeep",
         "Events & Festivals",
-        "Maintenance",
         "Repairs",
         "Utilities",
         "Refreshments",
         "Admin & Legal",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Maintenance"
     )
 
     // Form Field States
     var description by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(categories[1]) } // Default to Maintenance
+    var category by remember { mutableStateOf(categories.firstOrNull { it == "Puja & Rituals" } ?: categories.first()) } // Temple trust default
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
     var amountText by remember { mutableStateOf("") }
     var expenseDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var vendor by remember { mutableStateOf("") }
     var paymentMode by remember { mutableStateOf("UPI") } // UPI, Cash, Bank Transfer, Cheque
     var receiptRef by remember { mutableStateOf("") }
+    var paidByCommitteeMemberId by remember { mutableStateOf(0L) }
+    var payerDropdownExpanded by remember { mutableStateOf(false) }
     var receiptImageUri by remember { mutableStateOf<String?>(null) }
 
     // Validation & Loading States
@@ -653,6 +660,46 @@ fun ExpenseScreen(
 
                             Spacer(modifier = Modifier.height(14.dp))
 
+                            Text(
+                                text = "Paid from",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                            Text(
+                                text = "Choose a committee member only if they paid from personal funds.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = payerDropdownExpanded,
+                                onExpandedChange = { payerDropdownExpanded = it }
+                            ) {
+                                val selectedPayer = committeeMembers.firstOrNull { it.id == paidByCommitteeMemberId }
+                                OutlinedTextField(
+                                    value = selectedPayer?.let { "${it.name} — ${it.role}" } ?: "Trust funds",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Funding source") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payerDropdownExpanded) },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = payerDropdownExpanded,
+                                    onDismissRequest = { payerDropdownExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Trust funds") },
+                                        onClick = { paidByCommitteeMemberId = 0L; payerDropdownExpanded = false }
+                                    )
+                                    committeeMembers.filter { it.role != "Resident Member" && it.role != "Donor" }.forEach { committeeMember ->
+                                        DropdownMenuItem(
+                                            text = { Text("${committeeMember.name} — ${committeeMember.role}") },
+                                            onClick = { paidByCommitteeMemberId = committeeMember.id; payerDropdownExpanded = false }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(14.dp))
+
                             // 6. Payment Method Selector
                             Text(
                                 text = "Payment Method *",
@@ -927,6 +974,7 @@ fun ExpenseScreen(
                                                 paidTo = vendor.trim(),
                                                 paymentMode = paymentMode,
                                                 receiptUrl = finalReceipt,
+                                                paidByCommitteeMemberId = paidByCommitteeMemberId,
                                                 recordedById = 1,
                                                 recordedByName = "Admin Committee",
                                                 societyId = resolvedSociety

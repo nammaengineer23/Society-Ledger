@@ -68,7 +68,7 @@ import com.example.ui.theme.SocietyTealPrimary
 @Composable
 fun AddEditMemberDialog(
     existingMember: Member? = null,
-    onSave: (name: String, email: String, phone: String, role: String, pin: String, isSuperAdmin: Boolean) -> Unit,
+    onSave: (name: String, email: String, phone: String, role: String, pin: String, isSuperAdmin: Boolean, openingBalance: Double, openingBalanceNotes: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isEdit = existingMember != null
@@ -79,6 +79,9 @@ fun AddEditMemberDialog(
     var role by remember { mutableStateOf(existingMember?.role ?: "Committee Member") }
     var pin by remember { mutableStateOf(existingMember?.pin ?: "") }
     var isSuperAdmin by remember { mutableStateOf(existingMember?.isSuperAdmin ?: false) }
+    var openingBalance by remember { mutableStateOf("0") }
+    var openingBalanceNotes by remember { mutableStateOf("") }
+    var openingBalanceError by remember { mutableStateOf(false) }
     var showPin by remember { mutableStateOf(false) }
 
     var nameError by remember { mutableStateOf(false) }
@@ -318,6 +321,41 @@ fun AddEditMemberDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                if (!isEdit) {
+                    Text(
+                        text = "Opening balance / advance (₹)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = openingBalance,
+                        onValueChange = {
+                            if (it.isBlank() || it.matches(Regex("^\\d*(\\.\\d{0,2})?$"))) {
+                                openingBalance = it
+                                openingBalanceError = false
+                            }
+                        },
+                        label = { Text("Amount already held / advanced") },
+                        supportingText = {
+                            Text(if (openingBalanceError) "Enter a valid non-negative amount" else "Use 0 if there is no opening advance")
+                        },
+                        isError = openingBalanceError,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("member_opening_balance_input")
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = openingBalanceNotes,
+                        onValueChange = { openingBalanceNotes = it },
+                        label = { Text("Opening balance notes / reference") },
+                        supportingText = { Text("Optional note for the audit trail") },
+                        modifier = Modifier.fillMaxWidth().testTag("member_opening_balance_notes")
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
                 // Super Admin Privileges Switch Card
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -394,6 +432,11 @@ fun AddEditMemberDialog(
                                 pinError = true
                                 valid = false
                             }
+                            val openingAmount = openingBalance.toDoubleOrNull() ?: 0.0
+                            if (!isEdit && (!openingAmount.isFinite() || openingAmount < 0.0)) {
+                                openingBalanceError = true
+                                valid = false
+                            }
 
                             if (valid) {
                                 onSave(
@@ -402,7 +445,9 @@ fun AddEditMemberDialog(
                                     phone.trim(),
                                     role.trim(),
                                     pin.trim(),
-                                    isSuperAdmin
+                                    isSuperAdmin,
+                                    if (isEdit) 0.0 else openingAmount,
+                                    openingBalanceNotes.trim()
                                 )
                             }
                         },

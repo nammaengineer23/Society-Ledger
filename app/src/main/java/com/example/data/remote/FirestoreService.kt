@@ -5,6 +5,7 @@ import com.example.data.local.PreloadedData
 import com.example.data.model.AuditLog
 import com.example.data.model.CommitteeMember
 import com.example.data.model.Donation
+import com.example.data.model.Donor
 import com.example.data.model.Expense
 import com.example.data.model.Member
 import com.example.data.model.Pledge
@@ -270,6 +271,7 @@ class FirestoreService {
                 "paidTo" to expense.paidTo,
                 "paymentMode" to expense.paymentMode,
                 "receiptUrl" to expense.receiptUrl,
+                "paidByCommitteeMemberId" to expense.paidByCommitteeMemberId,
                 "recordedById" to expense.recordedById,
                 "recordedByName" to expense.recordedByName,
                 "userId" to (if (expense.userId.isNotBlank()) expense.userId else effectiveUserId),
@@ -317,6 +319,7 @@ class FirestoreService {
                 "paidTo" to expense.paidTo,
                 "paymentMode" to expense.paymentMode,
                 "receiptUrl" to expense.receiptUrl,
+                "paidByCommitteeMemberId" to expense.paidByCommitteeMemberId,
                 "recordedById" to expense.recordedById,
                 "recordedByName" to expense.recordedByName,
                 "userId" to if (expense.userId.isNotBlank()) expense.userId else firebaseUid,
@@ -657,6 +660,73 @@ class FirestoreService {
             results
         } catch (e: Exception) {
             handleFirestoreError("Fetching all members", e)
+            emptyList()
+        }
+    }
+
+    /** Saves donor contact details independently from donation and committee records. */
+    suspend fun saveDonor(donor: Donor, societyName: String = ""): String? {
+        val db = firestore ?: return null
+        if (donor.name.isBlank()) return null
+        return try {
+            ensureAuthenticated()
+            val socDocId = resolveSocietyDocId(societyName.ifBlank { donor.societyId })
+            ensureSocietyDocExists(socDocId)
+            val phoneKey = donor.phone.filter { it.isDigit() }.takeLast(10)
+            val nameKey = donor.name.trim().lowercase()
+                .replace(Regex("[^a-z0-9]+"), "_").trim('_').take(48)
+            // Keep the document ID after first sync so contact edits update the same record.
+            val documentId = donor.firestoreId.ifBlank {
+                val stableKey = phoneKey.ifBlank { nameKey.ifBlank { "unknown" } }
+                "donor_$stableKey"
+            }
+            val donorData = hashMapOf<String, Any?>(
+                "name" to donor.name.trim(),
+                "phone" to phoneKey,
+                "email" to donor.email.trim(),
+                "flatOrAddress" to donor.flatOrAddress.trim(),
+                "societyId" to socDocId,
+                "notes" to donor.notes.trim(),
+                "isCustomAdded" to donor.isCustomAdded,
+                "localId" to donor.id,
+                "createdAt" to donor.createdAt,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            db.collection(COLLECTION_SOCIETIES).document(socDocId)
+                .collection(COLLECTION_DONORS).document(documentId)
+                .set(donorData, SetOptions.merge()).await()
+            documentId
+        } catch (e: Exception) {
+            handleFirestoreError("Saving donor directory entry", e)
+            null
+        }
+    }
+
+    suspend fun fetchAllDonors(societyName: String = ""): List<Donor> {
+        val db = firestore ?: return emptyList()
+        if (isCloudAccessRestricted && auth?.currentUser == null) return emptyList()
+        return try {
+            ensureAuthenticated()
+            val targetCol = getSocietySubcollection(COLLECTION_DONORS, societyName) ?: return emptyList()
+            targetCol.get().await().documents.mapNotNull { doc ->
+                val name = doc.getString("name")?.trim().orEmpty()
+                if (name.isBlank()) return@mapNotNull null
+                Donor(
+                    id = doc.getLong("localId") ?: 0L,
+                    firestoreId = doc.id,
+                    name = name,
+                    phone = doc.getString("phone").orEmpty(),
+                    email = doc.getString("email").orEmpty(),
+                    flatOrAddress = doc.getString("flatOrAddress").orEmpty(),
+                    societyId = doc.getString("societyId") ?: resolveSocietyDocId(societyName),
+                    notes = doc.getString("notes").orEmpty(),
+                    isCustomAdded = doc.getBoolean("isCustomAdded") ?: false,
+                    createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
+                    updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis()
+                )
+            }
+        } catch (e: Exception) {
+            handleFirestoreError("Fetching donor directory", e)
             emptyList()
         }
     }
@@ -1481,6 +1551,7 @@ class FirestoreService {
                 paidTo = doc.getString("paidTo") ?: "",
                 paymentMode = doc.getString("paymentMode") ?: "Cash",
                 receiptUrl = doc.getString("receiptUrl") ?: "",
+                paidByCommitteeMemberId = doc.getLong("paidByCommitteeMemberId") ?: 0L,
                 recordedById = doc.getLong("recordedById") ?: 1L,
                 recordedByName = doc.getString("recordedByName") ?: "",
                 userId = doc.getString("userId") ?: "",
@@ -1745,6 +1816,7 @@ class FirestoreService {
         const val COLLECTION_COMMITTEE_MEMBERS = "committee_members"
         const val COLLECTION_SOCIETIES = "societies"
         const val COLLECTION_MEMBERS = "members"
+        const val COLLECTION_DONORS = "donors"
         const val COLLECTION_AUDIT_LOGS = "audit_logs"
         const val COLLECTION_SUBSCRIPTIONS = "subscriptions"
     }
