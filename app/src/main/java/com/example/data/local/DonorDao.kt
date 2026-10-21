@@ -16,7 +16,7 @@ interface DonorDao {
     @Query("SELECT * FROM donors WHERE societyId = :societyId ORDER BY name COLLATE NOCASE ASC")
     suspend fun getForSociety(societyId: String): List<Donor>
 
-    @Query("SELECT * FROM donors WHERE societyId = :societyId AND (lower(name) = lower(:name) OR (:phone != '' AND phone = :phone)) LIMIT 1")
+    @Query("SELECT * FROM donors WHERE societyId = :societyId AND ((:phone != '' AND phone = :phone) OR (:phone = '' AND lower(name) = lower(:name))) LIMIT 1")
     suspend fun findExisting(societyId: String, name: String, phone: String): Donor?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
