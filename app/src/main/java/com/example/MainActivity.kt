@@ -766,6 +766,7 @@ fun SocietyMainApp(
                         societyName = societyInfo.name,
                         categoryBudgets = categoryBudgets,
                         existingExpensesForCategory = allExpenses.sumOf { it.amount },
+                        committeeMembers = members,
                         isDarkTheme = isDarkTheme,
                         onToggleTheme = onToggleTheme,
                         onNavigateBack = { currentScreen = AppScreen.EXPENSES },
