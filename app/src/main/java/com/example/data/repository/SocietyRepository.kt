@@ -1003,24 +1003,97 @@ class SocietyRepository(
         userEmail: String = ""
     ): Long {
         val societyName = getSocietyInfo().name
-        val localId = expenseDao.insertExpense(expense.copy(societyId = societyName))
-        val withLocalId = expense.copy(id = localId, societyId = societyName)
-        val firestoreDocId = firestoreService.saveExpense(withLocalId, userId, userEmail, societyName = societyName)
-        if (firestoreDocId != null) {
-            val withFirestore = withLocalId.copy(
-                firestoreId = firestoreDocId,
-                userId = userId,
-                userEmail = userEmail
-            )
-            expenseDao.updateExpense(withFirestore)
+        require(expense.amount.isFinite() && expense.amount > 0.0) { "Expense amount must be greater than zero" }
+        if (expense.paidByCommitteeMemberId > 0L) {
+            val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+                ?: throw IllegalArgumentException("Selected committee payer was not found")
+            require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+                "Only an active committee member can be recorded as the personal payer"
+            }
         }
+        val localId = expenseDao.insertExpense(expense.copy(societyId = societyName))
+        var saved = expense.copy(id = localId, societyId = societyName)
+        val firestoreDocId = firestoreService.saveExpense(saved, userId, userEmail, societyName = societyName)
+        if (firestoreDocId != null) {
+            saved = saved.copy(firestoreId = firestoreDocId, userId = userId, userEmail = userEmail)
+            expenseDao.updateExpense(saved)
+        }
+        syncExpenseCommitteeLedger(saved)
         return localId
+    }
+
+    private suspend fun syncExpenseCommitteeLedger(expense: Expense) {
+        val dao = transactionDao ?: return
+        val reference = "EXPENSE-MEMBER-${expense.id}"
+        val existing = dao.getTransactionByReferenceNo(reference)
+        if (expense.isDeleted || expense.paidByCommitteeMemberId <= 0L) {
+            if (existing != null && !existing.isDeleted) {
+                val voided = existing.copy(
+                    isDeleted = true,
+                    deletionReason = if (expense.isDeleted) expense.deletionReason.ifBlank { "Linked expense deleted" } else "Expense funding source changed to trust funds",
+                    deletedAt = System.currentTimeMillis(),
+                    deletedByName = expense.deletedByName.ifBlank { expense.recordedByName },
+                    updatedAt = System.currentTimeMillis()
+                )
+                dao.updateTransaction(voided)
+                try { firestoreService.saveTransaction(voided, societyName = getSocietyInfo().name) } catch (_: Exception) {}
+            }
+            return
+        }
+        val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+            ?: throw IllegalArgumentException("Selected committee payer was not found")
+        require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+            "Only an active committee member can be recorded as the personal payer"
+        }
+        val now = System.currentTimeMillis()
+        val entry = Transaction(
+            id = existing?.id ?: 0L,
+            transactionType = CommitteeMemberAccountBalance.MEMBER_EXPENSE,
+            committeeMemberId = payer.id,
+            title = "Expense paid personally: ${expense.title}",
+            category = expense.category,
+            amount = expense.amount,
+            partyName = expense.paidTo,
+            partyPhone = payer.phone,
+            partyEmail = payer.email,
+            paymentMode = expense.paymentMode,
+            paymentDate = expense.expenseDate,
+            status = "COMPLETED",
+            receiptNo = expense.receiptUrl,
+            referenceNo = reference,
+            notes = "Linked expense #${expense.id}; ${expense.title}",
+            recordedById = expense.recordedById,
+            recordedByName = expense.recordedByName,
+            userId = expense.userId,
+            userEmail = expense.userEmail,
+            societyId = getSocietyInfo().name,
+            firestoreId = existing?.firestoreId ?: "",
+            isModified = existing?.isModified ?: false,
+            modificationReason = existing?.modificationReason ?: "",
+            modifiedAt = existing?.modifiedAt ?: 0L,
+            modifiedByName = existing?.modifiedByName ?: "",
+            isDeleted = false,
+            createdAt = existing?.createdAt ?: now,
+            updatedAt = now
+        )
+        if (existing == null) insertTransaction(entry) else {
+            dao.updateTransaction(entry)
+            try { firestoreService.saveTransaction(entry, societyName = getSocietyInfo().name) } catch (_: Exception) {}
+        }
     }
 
     suspend fun updateExpense(expense: Expense) {
         val societyName = getSocietyInfo().name
+        if (expense.paidByCommitteeMemberId > 0L && !expense.isDeleted) {
+            val payer = committeeMemberDao?.getCommitteeMemberById(expense.paidByCommitteeMemberId)
+                ?: throw IllegalArgumentException("Selected committee payer was not found")
+            require(payer.role !in listOf("Resident Member", "Donor") && payer.status == "ACTIVE") {
+                "Only an active committee member can be recorded as the personal payer"
+            }
+        }
         expenseDao.updateExpense(expense)
         firestoreService.updateExpense(expense, societyName = societyName)
+        syncExpenseCommitteeLedger(expense)
     }
 
     /**
@@ -1100,10 +1173,18 @@ class SocietyRepository(
 
     suspend fun deleteExpense(expense: Expense) {
         val societyName = getSocietyInfo().name
-        expenseDao.deleteExpense(expense)
+        val deleted = expense.copy(
+            isDeleted = true,
+            deletionReason = expense.deletionReason.ifBlank { "Expense deleted" },
+            deletedAt = System.currentTimeMillis(),
+            deletedByName = expense.deletedByName.ifBlank { expense.recordedByName },
+            updatedAt = System.currentTimeMillis()
+        )
+        expenseDao.updateExpense(deleted)
         if (expense.firestoreId.isNotBlank()) {
-            firestoreService.deleteExpense(expense.firestoreId, societyName = societyName)
+            firestoreService.updateExpense(deleted, societyName = societyName)
         }
+        syncExpenseCommitteeLedger(deleted)
     }
 
     suspend fun deleteExpenseById(id: Long) {
