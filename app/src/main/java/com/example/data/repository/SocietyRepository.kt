@@ -620,6 +620,12 @@ class SocietyRepository(
                         )
                     }
                 }
+                // Push local-only contacts too, so offline-created donors reach other devices.
+                localDonorDao.getForSociety(currentInfo.name).forEach { local ->
+                    if (!firestoreService.saveDonor(local, societyName = currentInfo.name)) {
+                        Log.w("SocietyRepository", "Donor cloud sync deferred for local record ${local.id}")
+                    }
+                }
             }
 
             val isFirstCloudSync = !(societyPreferences?.hasSyncedCloudData() ?: false)
