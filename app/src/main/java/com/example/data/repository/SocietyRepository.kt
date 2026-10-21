@@ -60,6 +60,46 @@ class SocietyRepository(
      * Records a maintenance assessment. This is a ledger entry only; it never
      * starts or collects an online payment.
      */
+    suspend fun addCustomDonor(donor: Donor): Donor {
+        val dao = donorDao ?: error("Donor directory is not configured")
+        require(donor.name.isNotBlank()) { "Donor name is required" }
+        val digits = donor.phone.filter { it.isDigit() }
+        require(digits.length == 10) { "Enter a valid 10-digit phone number" }
+        val societyId = getSocietyInfo().name
+        val normalized = donor.copy(
+            id = 0L,
+            name = donor.name.trim(),
+            phone = digits.takeLast(10),
+            email = donor.email.trim(),
+            flatOrAddress = donor.flatOrAddress.trim(),
+            notes = donor.notes.trim(),
+            societyId = societyId,
+            isCustomAdded = true,
+            updatedAt = System.currentTimeMillis()
+        )
+        val existing = dao.findExisting(societyId, normalized.name, normalized.phone)
+        if (existing != null) {
+            val updated = existing.copy(
+                name = normalized.name,
+                phone = normalized.phone,
+                email = normalized.email,
+                flatOrAddress = normalized.flatOrAddress,
+                notes = normalized.notes,
+                isCustomAdded = true,
+                updatedAt = System.currentTimeMillis()
+            )
+            dao.update(updated)
+            return updated
+        }
+        val id = dao.insert(normalized)
+        if (id <= 0L) {
+            val raced = dao.findExisting(societyId, normalized.name, normalized.phone)
+                ?: error("Unable to save donor")
+            return raced
+        }
+        return normalized.copy(id = id)
+    }
+
     suspend fun addMaintenanceCharge(charge: MaintenanceCharge): Long {
         val dao = maintenanceChargeDao ?: error("Maintenance ledger is not configured")
         require(charge.flatNo.isNotBlank()) { "Flat number is required" }
