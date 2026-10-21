@@ -92,6 +92,7 @@ fun AddEditExpenseDialog(
     currentMember: Member?,
     categoryBudgets: Map<String, Double> = emptyMap(),
     existingExpensesForCategory: Double = 0.0,
+    committeeMembers: List<Member> = emptyList(),
     onSave: (
         title: String,
         category: String,
@@ -100,7 +101,8 @@ fun AddEditExpenseDialog(
         paidTo: String,
         paymentMode: String,
         receiptUrl: String,
-        modificationReason: String
+        modificationReason: String,
+        paidByCommitteeMemberId: Long
     ) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -126,6 +128,8 @@ fun AddEditExpenseDialog(
     var paidTo by remember { mutableStateOf(existingExpense?.paidTo ?: "") }
     var paymentMode by remember { mutableStateOf(existingExpense?.paymentMode ?: "Online") }
     var receiptUrl by remember { mutableStateOf(existingExpense?.receiptUrl ?: "") }
+    var paidByCommitteeMemberId by remember { mutableStateOf(existingExpense?.paidByCommitteeMemberId ?: 0L) }
+    var payerDropdownExpanded by remember { mutableStateOf(false) }
     var modificationReason by remember { mutableStateOf("") }
     val context = LocalContext.current
     var expenseDate by remember { mutableStateOf(existingExpense?.expenseDate ?: System.currentTimeMillis()) }
@@ -424,6 +428,56 @@ fun AddEditExpenseDialog(
                         onClick = { datePickerDialog.show() },
                         label = { Text("Pick Date 📅", style = MaterialTheme.typography.labelSmall) }
                     )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Paid from",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Choose a committee member only when they paid this expense from personal funds. Trust-funded expenses stay unlinked.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                ExposedDropdownMenuBox(
+                    expanded = payerDropdownExpanded,
+                    onExpandedChange = { payerDropdownExpanded = it }
+                ) {
+                    val selectedPayer = committeeMembers.firstOrNull { it.id == paidByCommitteeMemberId }
+                    OutlinedTextField(
+                        value = selectedPayer?.let { "${it.name} — ${it.role}" } ?: "Trust funds",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Funding source") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = payerDropdownExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = payerDropdownExpanded,
+                        onDismissRequest = { payerDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Trust funds") },
+                            onClick = {
+                                paidByCommitteeMemberId = 0L
+                                payerDropdownExpanded = false
+                            }
+                        )
+                        committeeMembers
+                            .filter { it.role != "Resident Member" && it.role != "Donor" }
+                            .forEach { committeeMember ->
+                                DropdownMenuItem(
+                                    text = { Text("${committeeMember.name} — ${committeeMember.role}") },
+                                    onClick = {
+                                        paidByCommitteeMemberId = committeeMember.id
+                                        payerDropdownExpanded = false
+                                    }
+                                )
+                            }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -731,7 +785,8 @@ fun AddEditExpenseDialog(
                                     paidTo.trim(),
                                     paymentMode,
                                     receiptUrl.trim(),
-                                    effectiveModReason
+                                    effectiveModReason,
+                                    paidByCommitteeMemberId
                                 )
                                 onDismiss()
                             }
