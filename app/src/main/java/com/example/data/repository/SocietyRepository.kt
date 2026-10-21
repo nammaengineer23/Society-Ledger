@@ -89,15 +89,25 @@ class SocietyRepository(
                 updatedAt = System.currentTimeMillis()
             )
             dao.update(updated)
+            syncDonorToCloud(updated)
             return updated
         }
         val id = dao.insert(normalized)
         if (id <= 0L) {
             val raced = dao.findExisting(societyId, normalized.name, normalized.phone)
                 ?: error("Unable to save donor")
+            syncDonorToCloud(raced)
             return raced
         }
-        return normalized.copy(id = id)
+        val saved = normalized.copy(id = id)
+        syncDonorToCloud(saved)
+        return saved
+    }
+
+    private suspend fun syncDonorToCloud(donor: Donor) {
+        if (!firestoreService.saveDonor(donor, societyName = donor.societyId)) {
+            Log.w("SocietyRepository", "Donor saved locally; cloud sync will retry on the next manual sync")
+        }
     }
 
     suspend fun addMaintenanceCharge(charge: MaintenanceCharge): Long {
@@ -588,6 +598,30 @@ class SocietyRepository(
                 }
             }
 
+            // Merge the separate cloud donor directory into local storage.
+            val remoteDonors = firestoreService.fetchAllDonors(currentInfo.name)
+            val localDonorDao = donorDao
+            if (localDonorDao != null) {
+                remoteDonors.forEach { remote ->
+                    val existing = localDonorDao.findExisting(currentInfo.name, remote.name, remote.phone)
+                    if (existing == null) {
+                        localDonorDao.insert(remote.copy(id = 0L, societyId = currentInfo.name))
+                    } else {
+                        localDonorDao.update(
+                            existing.copy(
+                                name = remote.name,
+                                phone = remote.phone.ifBlank { existing.phone },
+                                email = remote.email.ifBlank { existing.email },
+                                flatOrAddress = remote.flatOrAddress.ifBlank { existing.flatOrAddress },
+                                notes = remote.notes.ifBlank { existing.notes },
+                                isCustomAdded = existing.isCustomAdded || remote.isCustomAdded,
+                                updatedAt = maxOf(existing.updatedAt, remote.updatedAt)
+                            )
+                        )
+                    }
+                }
+            }
+
             val isFirstCloudSync = !(societyPreferences?.hasSyncedCloudData() ?: false)
 
             val remoteDonations = firestoreService.fetchAllDonations(currentInfo.name)
@@ -704,6 +738,12 @@ class SocietyRepository(
                 }
             }
 
+            val localDonors = donorDao?.getForSociety(society.name) ?: emptyList()
+            var donorCount = 0
+            localDonors.forEach { donor ->
+                if (firestoreService.saveDonor(donor, societyName = society.name)) donorCount++
+            }
+
             val donations = donationDao.getAllDonationsList()
             var donationCount = 0
             donations.forEach { donation ->
@@ -734,12 +774,12 @@ class SocietyRepository(
                 }
             }
 
-            if (!societySaved && memberCount == 0 && donationCount == 0 && expenseCount == 0 && transactionCount == 0) {
+            if (!societySaved && memberCount == 0 && donorCount == 0 && donationCount == 0 && expenseCount == 0 && transactionCount == 0) {
                 val err = firestoreService.lastCloudError ?: "Permission denied or network unreachable"
                 Pair(false, "Cloud upload blocked: $err")
             } else {
                 societyPreferences?.setHasSyncedCloudData(true)
-                Pair(true, "Successfully uploaded to '${society.name}': Society profile, $memberCount members, $donationCount donations, $expenseCount expenses, and $transactionCount transactions to Cloud!")
+                Pair(true, "Successfully uploaded to '${society.name}': Society profile, $memberCount members, $donorCount donors, $donationCount donations, $expenseCount expenses, and $transactionCount transactions to Cloud!")
             }
         } catch (e: Exception) {
             Log.e("SocietyRepository", "Error uploading to Firestore: ${e.message}", e)
@@ -891,22 +931,32 @@ class SocietyRepository(
                 val donorPhone = donation.phone.trim()
                 val donorEmail = userEmail.ifBlank { donation.userEmail }.trim()
                 val existing = donors.findExisting(societyName, donorName, donorPhone)
-                if (existing == null) {
-                    donors.insert(
+                val donorRecord = if (existing == null) {
+                    val localId = donors.insert(
                         Donor(
                             name = donorName,
-                            phone = donorPhone,
+                            phone = donorPhone.filter { it.isDigit() }.takeLast(10),
                             email = donorEmail,
                             societyId = societyName
                         )
                     )
-                } else if (existing.phone != donorPhone || existing.email != donorEmail) {
-                    donors.updateContact(
-                        id = existing.id,
-                        phone = donorPhone.ifBlank { existing.phone },
-                        email = donorEmail.ifBlank { existing.email }
+                    Donor(
+                        id = localId.coerceAtLeast(0L),
+                        name = donorName,
+                        phone = donorPhone.filter { it.isDigit() }.takeLast(10),
+                        email = donorEmail,
+                        societyId = societyName
                     )
+                } else {
+                    val updated = existing.copy(
+                        phone = donorPhone.filter { it.isDigit() }.takeLast(10).ifBlank { existing.phone },
+                        email = donorEmail.ifBlank { existing.email },
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    donors.update(updated)
+                    updated
                 }
+                syncDonorToCloud(donorRecord)
             } catch (e: Exception) {
                 Log.w("SocietyRepository", "Donation saved, but donor directory update failed: ${e.message}")
             }
