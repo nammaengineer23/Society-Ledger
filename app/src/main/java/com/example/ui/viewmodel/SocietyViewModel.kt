@@ -1180,8 +1180,11 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         phone: String,
         role: String,
         pin: String = "",
-        isSuperAdmin: Boolean = false
+        isSuperAdmin: Boolean = false,
+        openingBalance: Double = 0.0,
+        openingBalanceNotes: String = ""
     ) {
+        if (!openingBalance.isFinite() || openingBalance < 0.0) return
         viewModelScope.launch {
             val member = Member(
                 name = name.trim(),
@@ -1191,7 +1194,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
                 pin = pin.trim(),
                 isSuperAdmin = isSuperAdmin
             )
-            repository.insertMember(member)
+            repository.insertMember(member, openingBalance, openingBalanceNotes)
         }
     }
 
