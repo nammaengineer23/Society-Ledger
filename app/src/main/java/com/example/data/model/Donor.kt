@@ -15,7 +15,8 @@ data class Donor(
     val notes: String = "",
     val isCustomAdded: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val firestoreId: String = ""
 )
 
 data class DonorSummary(
