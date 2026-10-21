@@ -1073,6 +1073,7 @@ class SocietyViewModel(application: Application) : AndroidViewModel(application)
         paidTo: String,
         paymentMode: String,
         receiptUrl: String,
+        paidByCommitteeMemberId: Long = 0L,
         onSuccess: ((Expense) -> Unit)? = null
     ) {
         if (amount <= 0 || title.isBlank() || paidTo.isBlank()) {
