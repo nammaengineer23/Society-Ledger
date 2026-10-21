@@ -753,7 +753,13 @@ class SocietyRepository(
             val localDonors = donorDao?.getForSociety(society.name) ?: emptyList()
             var donorCount = 0
             localDonors.forEach { donor ->
-                if (firestoreService.saveDonor(donor, societyName = society.name)) donorCount++
+                val cloudId = firestoreService.saveDonor(donor, societyName = society.name)
+                if (!cloudId.isNullOrBlank()) {
+                    donorCount++
+                    if (donor.firestoreId != cloudId) {
+                        donorDao?.update(donor.copy(firestoreId = cloudId))
+                    }
+                }
             }
 
             val donations = donationDao.getAllDonationsList()
