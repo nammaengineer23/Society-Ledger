@@ -1330,7 +1330,7 @@ fun SocietyMainApp(
     // 2. Add / Edit Expense Dialog
     if (showAddExpenseDialog || editingExpense != null) {
         val target = editingExpense
-        val selectedCategory = target?.category ?: "Maintenance"
+        val selectedCategory = target?.category ?: "Puja & Rituals"
         val existingExpensesForCat = allExpenses.filter { it.category == selectedCategory }.sumOf { it.amount }
         AddEditExpenseDialog(
             existingExpense = target,
@@ -1698,13 +1698,16 @@ fun SocietyMainApp(
     // 16. Monthly Category-wise Budget Cap Manager Dialog
     if (showBudgetDialog) {
         val expenseCategories = listOf(
+            "Puja & Rituals",
+            "Prasad & Annadanam",
+            "Temple Upkeep",
             "Events & Festivals",
-            "Maintenance",
             "Repairs",
             "Utilities",
             "Refreshments",
             "Admin & Legal",
-            "Miscellaneous"
+            "Miscellaneous",
+            "Maintenance"
         )
         CategoryBudgetDialog(
             categories = expenseCategories,
